@@ -32,6 +32,7 @@ import (
 	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
 	"github.com/google/osv-scalibr/extractor"
+	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -248,7 +249,7 @@ func newZippedDB(ctx context.Context, dbBasePath, name, url, userAgent string, o
 	// map the packages to their names ahead of loading,
 	// to make things simpler and reduce double working
 	for _, inv := range invs {
-		names = append(names, osvutil.ParsePackage(inv).Name)
+		names = append(names, osvutil.QueryNames(inv)...)
 	}
 
 	if err := db.load(ctx, names); err != nil {
@@ -259,14 +260,40 @@ func newZippedDB(ctx context.Context, dbBasePath, name, url, userAgent string, o
 }
 
 // VulnerabilitiesAffectingPackage returns the vulnerabilities that affects the provided package
+// VulnerabilitiesAffectingPackage returns the vulnerabilities affecting the
+// package, looked up under its normalized name.
 func VulnerabilitiesAffectingPackage(allVulns []*osvpb.Vulnerability, pkg *extractor.Package) []*osvpb.Vulnerability {
+	return VulnerabilitiesAffectingPackageAs(allVulns, pkg, osvutil.ParsePackage(pkg).Name)
+}
+
+// VulnerabilitiesAffectingPackageAs is VulnerabilitiesAffectingPackage with
+// the package looked up under name (see osvutil.QueryNames).
+func VulnerabilitiesAffectingPackageAs(allVulns []*osvpb.Vulnerability, pkg *extractor.Package, name string) []*osvpb.Vulnerability {
 	var vulnerabilities []*osvpb.Vulnerability
 
 	for _, vulnerability := range allVulns {
-		if vulnerability.GetWithdrawn() == nil && vulns.IsAffected(vulnerability, pkg) && !vulns.Include(vulnerabilities, vulnerability) {
+		if vulnerability.GetWithdrawn() == nil && vulns.IsAffectedAs(vulnerability, pkg, name) && !vulns.Include(vulnerabilities, vulnerability) {
 			vulnerabilities = append(vulnerabilities, vulnerability)
 		}
 	}
 
 	return vulnerabilities
+}
+
+// hasPackage reports whether the database has a record for the package name
+// in the ecosystem.
+func (db *zipDB) hasPackage(eco osvecosystem.Parsed, name string) bool {
+	for _, v := range db.Vulnerabilities {
+		for _, affected := range v.GetAffected() {
+			if affected.GetPackage().GetName() != name {
+				continue
+			}
+			affectedEco, err := osvecosystem.Parse(affected.GetPackage().GetEcosystem())
+			if err == nil && affectedEco.Equal(eco) {
+				return true
+			}
+		}
+	}
+
+	return false
 }

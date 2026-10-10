@@ -63,6 +63,9 @@ func newlocalMatcher(localDBPath string, userAgent string, downloadDB bool, zipp
 	}, nil
 }
 
+// MatchVulnerabilities returns the vulnerabilities of the local database that
+// affect the package, looked up under the first name of osvutil.QueryNames
+// the database knows.
 func (matcher *localMatcher) MatchVulnerabilities(ctx context.Context, pkg *extractor.Package, pkgs []*extractor.Package) ([]*osvpb.Vulnerability, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
@@ -72,9 +75,7 @@ func (matcher *localMatcher) MatchVulnerabilities(ctx context.Context, pkg *extr
 	eco := np.Ecosystem.Ecosystem
 
 	if np.Ecosystem.IsEmpty() {
-		// matching ecosystem-less versions can only be attempted if we have a version
 		if np.Version == "" {
-			// Is a commit based query, skip local scanning
 			return nil, nil
 		}
 
@@ -87,7 +88,18 @@ func (matcher *localMatcher) MatchVulnerabilities(ctx context.Context, pkg *extr
 		return nil, err
 	}
 
-	return VulnerabilitiesAffectingPackage(db.Vulnerabilities, pkg), nil
+	names := osvutil.QueryNames(pkg)
+	if len(names) == 1 {
+		return VulnerabilitiesAffectingPackage(db.Vulnerabilities, pkg), nil
+	}
+
+	for _, name := range names {
+		if db.hasPackage(np.Ecosystem, name) {
+			return VulnerabilitiesAffectingPackageAs(db.Vulnerabilities, pkg, name), nil
+		}
+	}
+
+	return nil, nil
 }
 
 func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstants.Ecosystem, invs []*extractor.Package) (*zipDB, error) {

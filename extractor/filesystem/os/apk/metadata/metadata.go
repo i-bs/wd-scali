@@ -37,6 +37,10 @@ type Metadata struct {
 	OSVersionID  string
 	Maintainer   string
 	Architecture string
+	// Provides lists the package names of the "p:" field (without "=version",
+	// so:/cmd:/pc: capabilities and paths). Some distributions key advisories
+	// on a provided name, see osvutil.QueryNames. Not in the proto.
+	Provides []string
 }
 
 // ToNamespace extracts the PURL namespace from the metadata.

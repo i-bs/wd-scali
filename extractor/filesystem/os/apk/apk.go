@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/extractor/filesystem"
@@ -162,6 +163,7 @@ func (e Extractor) extractFromInput(ctx context.Context, input *filesystem.ScanI
 				OriginName:   record["o"],
 				Architecture: record["A"],
 				Maintainer:   record["m"],
+				Provides:     parseProvides(record["p"]),
 			},
 			Licenses:   []string{record["L"]},
 			SourceCode: sourceCode,
@@ -181,4 +183,19 @@ func (e Extractor) extractFromInput(ctx context.Context, input *filesystem.ScanI
 	}
 
 	return packages, nil
+}
+
+// parseProvides returns the package names of an apk "p:" (provides) field
+// without their "=version"; so:/cmd:/pc: capabilities and paths are dropped.
+// Nil when nothing remains.
+func parseProvides(field string) []string {
+	var provides []string
+	for _, entry := range strings.Fields(field) {
+		name, _, _ := strings.Cut(entry, "=")
+		if name == "" || strings.Contains(name, ":") || strings.HasPrefix(name, "/") {
+			continue
+		}
+		provides = append(provides, name)
+	}
+	return provides
 }

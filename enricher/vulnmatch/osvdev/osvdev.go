@@ -126,10 +126,12 @@ func (Enricher) RequiredPlugins() []string {
 
 // Enrich queries the OSV.dev API to find vulnerabilities in the inventory packages
 func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inventory.Inventory) error {
+	// a package may map to several queries (osvutil.QueryNames), consecutive
+	// and in preference order
 	pkgs := make([]*extractor.Package, 0, len(inv.Packages))
 	queries := make([]*osvapipb.Query, 0, len(inv.Packages))
 	for _, pkg := range inv.Packages {
-		if query := pkgToQuery(pkg); query != nil {
+		for _, query := range pkgToQueries(pkg) {
 			pkgs = append(pkgs, pkg)
 			queries = append(queries, query)
 		}
@@ -155,10 +157,21 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 		return initialQueryErr
 	}
 
+	// Only the first name the database knows is used: an alias must not add
+	// findings to a package the database keys on its own name.
 	vulnToPkgs := map[string][]*extractor.Package{}
+	resolved := map[*extractor.Package]bool{}
 	for i, batch := range batchResp.Results {
+		if i >= len(pkgs) {
+			break
+		}
+		pkg := pkgs[i]
+		if resolved[pkg] || len(batch.Vulns) == 0 {
+			continue
+		}
+		resolved[pkg] = true
 		for _, vv := range batch.Vulns {
-			vulnToPkgs[vv.Id] = append(vulnToPkgs[vv.Id], pkgs[i])
+			vulnToPkgs[vv.Id] = append(vulnToPkgs[vv.Id], pkg)
 		}
 	}
 
@@ -242,36 +255,45 @@ func (e *Enricher) makeVulnerabilitiesRequest(ctx context.Context, vulnIDs []str
 	return vulnerabilities, nil
 }
 
-func pkgToQuery(pkg *extractor.Package) *osvapipb.Query {
+// pkgToQueries converts a package into the OSV queries to run for it, in
+// preference order: a single commit query, or one version query per candidate
+// package name (see osvutil.QueryNames). Returns nil for unqueryable packages.
+func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
 	np := osvutil.ParsePackage(pkg)
 
 	// If the ecosystem is GIT, we prioritize commit queries.
 	if np.Ecosystem.String() == "GIT" && np.Commit != "" {
-		return &osvapipb.Query{
+		return []*osvapipb.Query{{
 			Param: &osvapipb.Query_Commit{
 				Commit: np.Commit,
 			},
-		}
+		}}
 	}
 
 	if np.Name != "" && !np.Ecosystem.IsEmpty() && np.Version != "" {
-		return &osvapipb.Query{
-			Package: &osvpb.Package{
-				Name:      np.Name,
-				Ecosystem: np.Ecosystem.String(),
-			},
-			Param: &osvapipb.Query_Version{
-				Version: np.Version,
-			},
+		names := osvutil.QueryNames(pkg)
+		queries := make([]*osvapipb.Query, 0, len(names))
+		for _, name := range names {
+			queries = append(queries, &osvapipb.Query{
+				Package: &osvpb.Package{
+					Name:      name,
+					Ecosystem: np.Ecosystem.String(),
+				},
+				Param: &osvapipb.Query_Version{
+					Version: np.Version,
+				},
+			})
 		}
+
+		return queries
 	}
 
 	if np.Commit != "" {
-		return &osvapipb.Query{
+		return []*osvapipb.Query{{
 			Param: &osvapipb.Query_Commit{
 				Commit: np.Commit,
 			},
-		}
+		}}
 	}
 
 	return nil

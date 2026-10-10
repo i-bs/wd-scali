@@ -147,6 +147,62 @@ func version(pkg *extractor.Package, ecosystem string) string {
 	return version
 }
 
+// providesAliasEcosystems lists the apk-based ecosystems whose advisories may
+// be keyed on a name the package provides rather than on its origin: BellSoft
+// publishes the Liberica JDK advisories as "openjdk<major>[-lite]" while the
+// apk origin is "liberica<major>[-lite]" and the binary package provides
+// "openjdk21-lite-jdk-no-deps". Alpine keys strictly on the origin.
+var providesAliasEcosystems = map[osvconstants.Ecosystem]bool{
+	osvconstants.EcosystemAlpaquita:                  true,
+	osvconstants.EcosystemBellSoftHardenedContainers: true,
+}
+
+// QueryNames returns the names a vulnerability source should be queried
+// with, in order of preference: the normalized name from ParsePackage and,
+// for apk packages of a providesAliasEcosystems ecosystem, every provided
+// name and then every provided name with the sub-package suffix stripped
+// ("liberica21-lite-jdk-no-deps" -> "openjdk21-lite-jdk-no-deps" ->
+// "openjdk21-lite"). Callers use the first name the source knows.
+func QueryNames(pkg *extractor.Package) []string {
+	np := ParsePackage(pkg)
+	names := []string{np.Name}
+
+	m, ok := pkg.Metadata.(*apkmeta.Metadata)
+	if !ok || !providesAliasEcosystems[np.Ecosystem.Ecosystem] || len(m.Provides) == 0 {
+		return names
+	}
+
+	seen := map[string]bool{np.Name: true}
+	add := func(name string) {
+		if name != "" && !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+
+	origin := m.OriginName
+	if origin == "" {
+		origin = pkg.Name
+	}
+	suffix := ""
+	if m.PackageName != "" && strings.HasPrefix(m.PackageName, origin) {
+		suffix = strings.TrimPrefix(m.PackageName, origin)
+	}
+
+	for _, provided := range m.Provides {
+		add(provided)
+	}
+	if suffix != "" {
+		for _, provided := range m.Provides {
+			if strings.HasSuffix(provided, suffix) && len(provided) > len(suffix) {
+				add(strings.TrimSuffix(provided, suffix))
+			}
+		}
+	}
+
+	return names
+}
+
 func commit(pkg *extractor.Package) string {
 	if pkg.SourceCode != nil {
 		return pkg.SourceCode.Commit

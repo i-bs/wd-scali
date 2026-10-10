@@ -169,7 +169,7 @@ func TestExtract(t *testing.T) {
 				getPackage("testdata/installed", "apk-tools", "apk-tools", "2.14.0-r0", "alpine", "3.18.0", "Natanael Copa <ncopa@alpinelinux.org>", "x86_64", "GPL-2.0-only", "028d34f678a5386c3dc488cc3b62467c7a9d1a0b"),
 				getPackage("testdata/installed", "busybox", "busybox", "1.36.0-r9", "alpine", "3.18.0", "Sören Tempel <soeren+alpine@soeren-tempel.net>", "x86_64", "GPL-2.0-only", "b5c719c244319df3c72ab1f1ee994c2143cab7f0"),
 				getPackage("testdata/installed", "busybox-binsh", "busybox", "1.36.0-r9", "alpine", "3.18.0", "Sören Tempel <soeren+alpine@soeren-tempel.net>", "x86_64", "GPL-2.0-only", "b5c719c244319df3c72ab1f1ee994c2143cab7f0"),
-				getPackage("testdata/installed", "ca-certificates-bundle", "ca-certificates", "20230506-r0", "alpine", "3.18.0", "Natanael Copa <ncopa@alpinelinux.org>", "x86_64", "MPL-2.0 AND MIT", "59534a02716a92a10d177a118c34066162eff4a6"),
+				getPackage("testdata/installed", "ca-certificates-bundle", "ca-certificates", "20230506-r0", "alpine", "3.18.0", "Natanael Copa <ncopa@alpinelinux.org>", "x86_64", "MPL-2.0 AND MIT", "59534a02716a92a10d177a118c34066162eff4a6", "ca-certificates-cacert"),
 				getPackage("testdata/installed", "libc-utils", "libc-dev", "0.7.2-r5", "alpine", "3.18.0", "Natanael Copa <ncopa@alpinelinux.org>", "x86_64", "BSD-2-Clause AND BSD-3-Clause", "988f183cc9d6699930c3e18ccf4a9e36010afb56"),
 				getPackage("testdata/installed", "libcrypto3", "openssl", "3.1.0-r4", "alpine", "3.18.0", "Ariadne Conill <ariadne@dereferenced.org>", "x86_64", "Apache-2.0", "730b75e01c670e3dba5d6c05420b5f605edb6201"),
 				getPackage("testdata/installed", "libssl3", "openssl", "3.1.0-r4", "alpine", "3.18.0", "Ariadne Conill <ariadne@dereferenced.org>", "x86_64", "Apache-2.0", "730b75e01c670e3dba5d6c05420b5f605edb6201"),
@@ -303,7 +303,10 @@ func TestExtract(t *testing.T) {
 	}
 }
 
-func getPackage(path, pkgName, origin, version, osID, osVersionID, maintainer, arch, license string, commit string) *extractor.Package {
+func getPackage(path, pkgName, origin, version, osID, osVersionID, maintainer, arch, license string, commit string, provides ...string) *extractor.Package {
+	if len(provides) == 0 {
+		provides = nil
+	}
 	p := &extractor.Package{
 		Location: extractor.LocationFromPath(path),
 		Name:     pkgName,
@@ -316,6 +319,7 @@ func getPackage(path, pkgName, origin, version, osID, osVersionID, maintainer, a
 			OSVersionID:  osVersionID,
 			Maintainer:   maintainer,
 			Architecture: arch,
+			Provides:     provides,
 		},
 		Licenses: []string{license},
 	}
