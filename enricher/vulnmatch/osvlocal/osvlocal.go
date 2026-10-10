@@ -25,8 +25,10 @@ import (
 
 	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
 	"github.com/google/osv-scalibr/enricher"
+	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
+	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	"github.com/google/osv-scalibr/inventory/vex"
 	"github.com/google/osv-scalibr/plugin"
 	"github.com/google/osv-scalibr/plugin/config"
@@ -49,6 +51,12 @@ type Enricher struct {
 	localPath  string
 	download   bool
 	httpClient *http.Client
+
+	// see Options
+	localOnly    bool
+	vendorStrict bool
+	vendorURL    string
+	vendorFeeds  map[string]string
 }
 
 // New makes a new osvlocal.Enricher with the given config.
@@ -146,11 +154,18 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 	if err != nil {
 		return err
 	}
+	dbs.vendorStrict = e.vendorStrict
+	dbs.vendorURL = e.vendorURL
+	dbs.vendorFeeds = e.vendorFeeds
 
 	// A database that cannot be loaded must not stop the other packages from
 	// being matched: collect the error and report it at the end.
 	var errs []error
 	for _, pkg := range inv.Packages {
+		if e.localOnly && !osvecosystem.IsLocalOnly(osvutil.ParsePackage(pkg).Ecosystem.Ecosystem) {
+			continue
+		}
+
 		vulns, err := dbs.MatchVulnerabilities(ctx, pkg, inv.Packages)
 
 		if err != nil {

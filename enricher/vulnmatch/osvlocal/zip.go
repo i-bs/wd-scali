@@ -176,7 +176,7 @@ func (db *zipDB) download(ctx context.Context) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("db host returned %s", resp.Status)
+		return nil, &httpStatusError{code: resp.StatusCode, status: resp.Status}
 	}
 
 	body, err := io.ReadAll(resp.Body)

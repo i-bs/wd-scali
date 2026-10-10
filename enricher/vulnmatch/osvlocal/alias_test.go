@@ -193,6 +193,8 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newlocalMatcher: %v", err)
 		}
+		// strict: for a family of the vendor's products this is only a warning by default (vendor_test.go)
+		m.vendorStrict = true
 		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
 			t.Errorf("expected an error for a missing offline database, got none")
 		}
@@ -200,7 +202,8 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
 }
 
 // TestLocalMatcher_DownloadFailureUsesCache: a failed download falls back to
-// the cached copy; without a cache it is an error.
+// the cached copy; without a cache it is an error (for vendor families only
+// in strict mode, see vendor_test.go).
 func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
 	archive := fakeserver.ZipOSVs(t, vendorOSVs())
 
@@ -227,6 +230,7 @@ func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newlocalMatcher: %v", err)
 		}
+		m.vendorStrict = true
 		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
 			t.Errorf("expected an error, got none")
 		}

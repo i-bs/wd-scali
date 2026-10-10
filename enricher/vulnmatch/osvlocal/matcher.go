@@ -43,6 +43,13 @@ type localMatcher struct {
 	// userAgent sets the user agent requests for db zips are made with
 	userAgent  string
 	httpClient *http.Client
+	// vendorStrict makes an unavailable archive of a vendor family an
+	// error instead of a warning
+	vendorStrict bool
+	// vendorURL and vendorFeeds say where the archives of the vendor
+	// families come from, see archiveURL
+	vendorURL   string
+	vendorFeeds map[string]string
 }
 
 func newlocalMatcher(localDBPath string, userAgent string, downloadDB bool, zippedDBRemoteHost string, httpClient *http.Client) (*localMatcher, error) {
@@ -111,16 +118,32 @@ func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstan
 		return nil, matcher.failedDBs[eco]
 	}
 
+	url := matcher.archiveURL(eco)
 	db, err := newZippedDB(
 		ctx,
 		matcher.dbBasePath,
 		string(eco),
-		fmt.Sprintf("%s/%s/all.zip", matcher.zippedDBRemoteHost, eco),
+		url,
 		matcher.userAgent,
 		!matcher.downloadDB,
 		invs,
 		matcher.httpClient,
 	)
+
+	if err != nil && isVendorFamily(eco) {
+		// An unavailable vendor archive is a warning, not a failure: go on with
+		// an empty database, the packages stay without findings. Strict mode
+		// keeps the error.
+		warning := unavailable(eco, url, err).Warning()
+		if !matcher.vendorStrict {
+			log.Warnf("%s", warning)
+			db = &zipDB{Name: string(eco), ArchiveURL: url}
+			matcher.dbs[eco] = db
+
+			return db, nil
+		}
+		err = fmt.Errorf("%s: %w", warning, err)
+	}
 
 	if err != nil {
 		matcher.failedDBs[eco] = err
