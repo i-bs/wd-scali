@@ -198,3 +198,37 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
 		}
 	})
 }
+
+// TestLocalMatcher_DownloadFailureUsesCache: a failed download falls back to
+// the cached copy; without a cache it is an error.
+func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
+	archive := fakeserver.ZipOSVs(t, vendorOSVs())
+
+	ts := fakeserver.CreateZipServer(t, func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+
+	t.Run("cached copy kept on 404", func(t *testing.T) {
+		testDir := createTestDir(t)
+		cacheWrite(t, path.Join(testDir, "osv-scalibr", "Alpaquita", "all.zip"), archive)
+
+		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
+		if err != nil {
+			t.Fatalf("newlocalMatcher: %v", err)
+		}
+		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
+			t.Errorf("(-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("no cache and 404 is an error", func(t *testing.T) {
+		testDir := createTestDir(t)
+		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
+		if err != nil {
+			t.Fatalf("newlocalMatcher: %v", err)
+		}
+		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
+			t.Errorf("expected an error, got none")
+		}
+	})
+}

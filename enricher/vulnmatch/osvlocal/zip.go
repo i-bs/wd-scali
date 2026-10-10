@@ -138,6 +138,26 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
 		}
 	}
 
+	body, err := db.download(ctx)
+
+	if err != nil {
+		if cache != nil {
+			// a stale cache is better than no database at all
+			log.Warnf("could not update the %s OSV database, using the cached copy: %v", db.Name, err)
+
+			return cache, nil
+		}
+
+		return nil, err
+	}
+
+	db.store(body)
+
+	return body, nil
+}
+
+// download fetches the archive from ArchiveURL.
+func (db *zipDB) download(ctx context.Context) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, db.ArchiveURL, nil)
 
 	if err != nil {
@@ -159,15 +179,11 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("db host returned %s", resp.Status)
 	}
 
-	var body []byte
-
-	body, err = io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not read OSV database archive from response: %w", err)
 	}
-
-	db.store(body)
 
 	return body, nil
 }
@@ -186,6 +202,24 @@ func (db *zipDB) store(body []byte) {
 // <cache dir>/osv-scanner/<ecosystem>/all.zip (now osv-scalibr/...).
 func (db *zipDB) legacyStoredAt() string {
 	return path.Join(path.Dir(path.Dir(path.Dir(db.StoredAt))), "osv-scanner", db.Name, "all.zip")
+}
+
+// hasPackage reports whether the database has a record for the package name
+// in the ecosystem.
+func (db *zipDB) hasPackage(eco osvecosystem.Parsed, name string) bool {
+	for _, v := range db.Vulnerabilities {
+		for _, affected := range v.GetAffected() {
+			if affected.GetPackage().GetName() != name {
+				continue
+			}
+			affectedEco, err := osvecosystem.Parse(affected.GetPackage().GetEcosystem())
+			if err == nil && affectedEco.Equal(eco) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func mightAffectPackages(v *osvpb.Vulnerability, names []string) bool {
@@ -311,22 +345,4 @@ func VulnerabilitiesAffectingPackageAs(allVulns []*osvpb.Vulnerability, pkg *ext
 	}
 
 	return vulnerabilities
-}
-
-// hasPackage reports whether the database has a record for the package name
-// in the ecosystem.
-func (db *zipDB) hasPackage(eco osvecosystem.Parsed, name string) bool {
-	for _, v := range db.Vulnerabilities {
-		for _, affected := range v.GetAffected() {
-			if affected.GetPackage().GetName() != name {
-				continue
-			}
-			affectedEco, err := osvecosystem.Parse(affected.GetPackage().GetEcosystem())
-			if err == nil && affectedEco.Equal(eco) {
-				return true
-			}
-		}
-	}
-
-	return false
 }
