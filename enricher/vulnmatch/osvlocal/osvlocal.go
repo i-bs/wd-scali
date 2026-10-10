@@ -17,6 +17,7 @@ package osvlocal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -143,11 +144,19 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 		return err
 	}
 
+	// A database that cannot be loaded must not stop the other packages from
+	// being matched: collect the error and report it at the end.
+	var errs []error
 	for _, pkg := range inv.Packages {
 		vulns, err := dbs.MatchVulnerabilities(ctx, pkg, inv.Packages)
 
 		if err != nil {
-			return err
+			if ctx.Err() != nil {
+				return err
+			}
+			errs = append(errs, err)
+
+			continue
 		}
 
 		for _, vuln := range vulns {
@@ -164,7 +173,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 	// for the same package, so we deduplicate and merge the results.
 	inv.PackageVulns = dedupPackageVulns(inv.PackageVulns)
 
-	return nil
+	return errors.Join(slices.Compact(errs)...)
 }
 
 // dedupPackageVulns deduplicate package vulnerabilities that have the same pkg and vulnID
