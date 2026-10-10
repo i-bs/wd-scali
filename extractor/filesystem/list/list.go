@@ -54,6 +54,7 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradleverificationmetadataxml"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradleversioncatalog"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/pomxml"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/bunlock"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/denojson"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/denotssource"
@@ -227,6 +228,7 @@ var (
 	// JavaArtifact extractors for Java.
 	JavaArtifact = InitMap{
 		javaarchive.Name: {protoCfg(javaarchive.New)},
+		vendorjdk.Name:   {protoCfg(vendorjdk.New)},
 	}
 	// JavascriptSource extractors for Javascript.
 	JavascriptSource = InitMap{

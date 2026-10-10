@@ -20,6 +20,7 @@ import (
 	hexpurl "github.com/google/osv-scalibr/extractor/filesystem/language/erlang/mixlock/purl"
 	gopurl "github.com/google/osv-scalibr/extractor/filesystem/language/golang/purl"
 	mavenpurl "github.com/google/osv-scalibr/extractor/filesystem/language/java/purl"
+	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
 	npmpurl "github.com/google/osv-scalibr/extractor/filesystem/language/javascript/purl"
 	composerpurl "github.com/google/osv-scalibr/extractor/filesystem/language/php/purl"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/pypipurl"
@@ -60,6 +61,8 @@ func typeSpecificPURL(p *Package) *purl.PackageURL {
 		return spdxpurl.MakePackageURL(m)
 	case *cdxmeta.Metadata:
 		return cdxpurl.MakePackageURL(m)
+	case *vendorjdkmeta.Metadata:
+		return vendorjdkmeta.MakePackageURL(p.Version, m)
 	}
 
 	switch p.PURLType {
@@ -109,6 +112,10 @@ func githubPURL(name, version string) *purl.PackageURL {
 // toEcosystem converts a SCALIBR package structure into an OSV ecosystem value
 // defined in https://ossf.github.io/osv-schema/#defined-ecosystems
 func toEcosystem(p *Package) osvecosystem.Parsed {
+	if m, ok := p.Metadata.(*vendorjdkmeta.Metadata); ok {
+		return m.OSVEcosystem()
+	}
+
 	switch p.PURLType {
 	case purl.TypeDebian, purl.TypeOpkg, purl.TypeApk, purl.TypeRPM,
 		purl.TypeSnap, purl.TypePacman, purl.TypePortage:
