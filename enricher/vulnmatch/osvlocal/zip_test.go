@@ -329,11 +329,20 @@ func TestNewZippedDB_Online_WithCacheButNoHashHeader(t *testing.T) {
 		"GHSA-3.json": {Id: "GHSA-3"},
 	}))
 
-	_, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, userAgent, false, nil, http.DefaultClient)
+	// no checksum header: the archive is downloaded again
+	db, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, userAgent, false, nil, http.DefaultClient)
 
-	if err == nil {
-		t.Errorf("expected an error but did not get one")
+	if err != nil {
+		t.Fatalf("unexpected error \"%v\"", err)
 	}
+
+	expectDBToHaveOSVs(t, db, []*osvpb.Vulnerability{
+		{Id: "GHSA-1"},
+		{Id: "GHSA-2"},
+		{Id: "GHSA-3"},
+		{Id: "GHSA-4"},
+		{Id: "GHSA-5"},
+	})
 }
 
 func TestNewZippedDB_Online_WithBadCache(t *testing.T) {

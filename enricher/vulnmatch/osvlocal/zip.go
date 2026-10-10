@@ -33,6 +33,7 @@ import (
 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory/osvecosystem"
+	"github.com/google/osv-scalibr/log"
 	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -93,8 +94,19 @@ func fetchLocalArchiveCRC32CHash(data []byte) uint32 {
 	return crc32.Checksum(data, crc32.MakeTable(crc32.Castagnoli))
 }
 
+// fetchZip fetches the zip archive of the database, from the local cache when
+// it is up to date (or when offline), otherwise from ArchiveURL. ArchiveURL may
+// be a "file://" path, in which case the archive is copied into the cache so
+// that later offline runs can use it.
 func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
 	cache, err := os.ReadFile(db.StoredAt)
+
+	if err != nil {
+		// fall back to the cache layout of earlier osv-scanner releases
+		if legacy, legacyErr := os.ReadFile(db.legacyStoredAt()); legacyErr == nil {
+			cache, err = legacy, nil
+		}
+	}
 
 	if db.Offline {
 		if err != nil {
@@ -104,14 +116,24 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
 		return cache, nil
 	}
 
+	if localPath, ok := strings.CutPrefix(db.ArchiveURL, "file://"); ok {
+		body, err := os.ReadFile(localPath)
+		if err != nil {
+			return nil, fmt.Errorf("could not read OSV database archive: %w", err)
+		}
+
+		db.store(body)
+
+		return body, nil
+	}
+
 	if err == nil {
 		remoteHash, err := fetchRemoteArchiveCRC32CHash(ctx, db.ArchiveURL, db.httpClient)
 
 		if err != nil {
-			return nil, err
-		}
-
-		if fetchLocalArchiveCRC32CHash(cache) == remoteHash {
+			// no checksum header (a plain HTTP mirror): download again rather than fail
+			log.Debugf("could not determine remote hash of %s, downloading again: %v", db.ArchiveURL, err)
+		} else if fetchLocalArchiveCRC32CHash(cache) == remoteHash {
 			return cache, nil
 		}
 	}
@@ -145,14 +167,25 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("could not read OSV database archive from response: %w", err)
 	}
 
-	err = os.MkdirAll(path.Dir(db.StoredAt), 0750)
-
-	if err == nil {
-		//nolint:gosec // being world readable is fine
-		_ = os.WriteFile(db.StoredAt, body, 0644)
-	}
+	db.store(body)
 
 	return body, nil
+}
+
+// store writes the archive into the cache, ignoring errors (the cache is an
+// optimisation only).
+func (db *zipDB) store(body []byte) {
+	err := os.MkdirAll(path.Dir(db.StoredAt), 0750)
+
+	if err == nil {
+		_ = os.WriteFile(db.StoredAt, body, 0644)
+	}
+}
+
+// legacyStoredAt is the cache path of earlier osv-scanner releases,
+// <cache dir>/osv-scanner/<ecosystem>/all.zip (now osv-scalibr/...).
+func (db *zipDB) legacyStoredAt() string {
+	return path.Join(path.Dir(path.Dir(path.Dir(db.StoredAt))), "osv-scanner", db.Name, "all.zip")
 }
 
 func mightAffectPackages(v *osvpb.Vulnerability, names []string) bool {

@@ -17,6 +17,7 @@ package osvlocal
 import (
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -148,4 +149,52 @@ func TestLocalMatcher_ProvidesAlias(t *testing.T) {
 			t.Errorf("archive for %q not cached: %v", eco, err)
 		}
 	}
+}
+
+// TestLocalMatcher_FileURLAndLegacyCache: the archive host can be a file://
+// directory, and the <dir>/osv-scanner/<ecosystem>/ layout of earlier
+// osv-scanner releases is found in offline mode.
+func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
+	archive := fakeserver.ZipOSVs(t, vendorOSVs())
+
+	t.Run("file url", func(t *testing.T) {
+		testDir := createTestDir(t)
+		hostDir := filepath.Join(testDir, "host")
+		cacheWrite(t, path.Join(hostDir, "Alpaquita", "all.zip"), archive)
+
+		m, err := newlocalMatcher(filepath.Join(testDir, "cache"), userAgent, true, "file://"+hostDir, http.DefaultClient)
+		if err != nil {
+			t.Fatalf("newlocalMatcher: %v", err)
+		}
+		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
+			t.Errorf("(-want +got):\n%s", diff)
+		}
+		if _, err := os.Stat(filepath.Join(testDir, "cache", "osv-scalibr", "Alpaquita", "all.zip")); err != nil {
+			t.Errorf("archive read from file:// was not cached: %v", err)
+		}
+	})
+
+	t.Run("legacy layout offline", func(t *testing.T) {
+		testDir := createTestDir(t)
+		cacheWrite(t, path.Join(testDir, "osv-scanner", "Alpaquita", "all.zip"), archive)
+
+		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
+		if err != nil {
+			t.Fatalf("newlocalMatcher: %v", err)
+		}
+		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
+			t.Errorf("(-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("missing offline", func(t *testing.T) {
+		testDir := createTestDir(t)
+		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
+		if err != nil {
+			t.Fatalf("newlocalMatcher: %v", err)
+		}
+		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
+			t.Errorf("expected an error for a missing offline database, got none")
+		}
+	})
 }
