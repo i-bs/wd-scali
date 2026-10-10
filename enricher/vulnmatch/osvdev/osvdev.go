@@ -27,6 +27,7 @@ import (
 	osvutil "github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
+	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	"github.com/google/osv-scalibr/inventory/vex"
 	"github.com/google/osv-scalibr/plugin"
 	scalibrversion "github.com/google/osv-scalibr/version"
@@ -268,6 +269,12 @@ func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
 				Commit: np.Commit,
 			},
 		}}
+	}
+
+	// Ecosystems osv.dev does not serve are matched locally; naming one in a
+	// batch query makes the API reject the whole batch ("invalid ecosystem").
+	if osvecosystem.IsLocalOnly(np.Ecosystem.Ecosystem) {
+		return nil
 	}
 
 	if np.Name != "" && !np.Ecosystem.IsEmpty() && np.Version != "" {

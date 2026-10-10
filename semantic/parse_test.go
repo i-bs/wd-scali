@@ -18,6 +18,8 @@ import (
 	"errors"
 	"testing"
 
+	osvinternal "github.com/bell-sw/osv-internal"
+
 	"github.com/google/osv-scalibr/semantic"
 )
 
@@ -38,6 +40,8 @@ var ecosystems = []string{
 	"Go",
 	"Hex",
 	"Julia",
+	osvinternal.EcosystemJDK,
+	osvinternal.EcosystemNIK,
 	"Mageia",
 	"Maven",
 	"MinimOS",

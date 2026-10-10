@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	osvinternal "github.com/bell-sw/osv-internal"
 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
 )
 
@@ -30,9 +31,32 @@ import (
 //
 // For example, "Debian:7" would be parsed into Parsed{Ecosystem: constants.EcosystemDebian, Suffix: "7"}
 //
+// Ecosystems that are not (yet) part of the osv-schema constants but are
+// produced by SCALIBR extractors and understood by the vulnerability matchers.
+//
 // [spec]: https://ossf.github.io/osv-schema/
 //
 //nolint:recvcheck
+const (
+	// EcosystemVendorJDK is the ecosystem of the vendor's standalone JDK
+	// runtimes ("<family>:<java major>"), see extractor java/vendorjdk.
+	EcosystemVendorJDK osvconstants.Ecosystem = osvinternal.EcosystemJDK
+	// EcosystemVendorNIK is the ecosystem of the vendor's standalone Native
+	// Image Kit runtimes ("<family>:<nik major>-<java major>").
+	EcosystemVendorNIK osvconstants.Ecosystem = osvinternal.EcosystemNIK
+)
+
+// IsLocalOnly reports whether the ecosystem is one osv.dev does not serve:
+// its advisories come from local archives only, and api.osv.dev rejects a
+// whole batch query naming it ("invalid ecosystem", HTTP 400).
+func IsLocalOnly(ecosystem osvconstants.Ecosystem) bool {
+	switch ecosystem {
+	case EcosystemVendorJDK, EcosystemVendorNIK:
+		return true
+	}
+	return false
+}
+
 type Parsed struct {
 	Ecosystem osvconstants.Ecosystem
 	Suffix    string
@@ -145,7 +169,10 @@ func (p Parsed) GetValidity() error {
 		osvconstants.EcosystemVSCode,
 		osvconstants.EcosystemWolfi,
 		// GIT is a pseudo ecosystem that can be used in queries, so should be considered valid.
-		"GIT":
+		"GIT",
+		// prototype ecosystems produced by SCALIBR extractors (see above)
+		EcosystemVendorJDK,
+		EcosystemVendorNIK:
 
 	default:
 		return fmt.Errorf("base ecosystem does not exist in osvschema: %q", p.Ecosystem)

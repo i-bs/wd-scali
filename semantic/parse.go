@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	osvinternal "github.com/bell-sw/osv-internal"
 )
 
 // ErrUnsupportedEcosystem is returned for unsupported ecosystems.
@@ -84,6 +86,10 @@ func Parse(str string, ecosystem string) (Version, error) {
 		return ParseSemverVersion(str), nil
 	case "Julia":
 		return ParseSemverVersion(str), nil
+	case osvinternal.EcosystemJDK:
+		return ParseVendorJDKVersion(str)
+	case osvinternal.EcosystemNIK:
+		return ParseVendorNIKVersion(str)
 	case "Mageia":
 		return ParseRedHatVersion(str), nil
 	case "Maven":
