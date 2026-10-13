@@ -45,6 +45,10 @@ type zipDB struct {
 	ArchiveURL string
 	// whether this database should make any network requests
 	Offline bool
+	// NoCacheFallback makes a failed fetch an error even when a cached copy
+	// exists (by default the copy is used with a warning). Offline, where the
+	// cache is the source, is not concerned.
+	NoCacheFallback bool
 	// the path to the zip archive on disk
 	StoredAt string
 	// the vulnerabilities that are loaded into this database
@@ -108,23 +112,31 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
 		}
 	}
 
+	if localPath, ok := strings.CutPrefix(db.ArchiveURL, "file://"); ok {
+		// A local archive is no download and is read even when Offline; the
+		// cached copy is the fallback when it cannot be read.
+		body, readErr := os.ReadFile(localPath)
+		if readErr != nil {
+			if cache != nil && !db.NoCacheFallback {
+				log.Warnf("could not read the %s OSV database archive, using the cached copy: %v", db.Name, readErr)
+
+				return cache, nil
+			}
+
+			return nil, fmt.Errorf("could not read OSV database archive: %w", readErr)
+		}
+
+		db.store(body)
+
+		return body, nil
+	}
+
 	if db.Offline {
 		if err != nil {
 			return nil, errOfflineDatabaseNotFound
 		}
 
 		return cache, nil
-	}
-
-	if localPath, ok := strings.CutPrefix(db.ArchiveURL, "file://"); ok {
-		body, err := os.ReadFile(localPath)
-		if err != nil {
-			return nil, fmt.Errorf("could not read OSV database archive: %w", err)
-		}
-
-		db.store(body)
-
-		return body, nil
 	}
 
 	if err == nil {
@@ -141,7 +153,7 @@ func (db *zipDB) fetchZip(ctx context.Context) ([]byte, error) {
 	body, err := db.download(ctx)
 
 	if err != nil {
-		if cache != nil {
+		if cache != nil && !db.NoCacheFallback {
 			// a stale cache is better than no database at all
 			log.Warnf("could not update the %s OSV database, using the cached copy: %v", db.Name, err)
 
@@ -303,14 +315,19 @@ func (db *zipDB) load(ctx context.Context, names []string) error {
 }
 
 func newZippedDB(ctx context.Context, dbBasePath, name, url, userAgent string, offline bool, invs []*extractor.Package, httpClient *http.Client) (*zipDB, error) {
-	db := &zipDB{
+	return loadZippedDB(ctx, &zipDB{
 		Name:       name,
 		ArchiveURL: url,
 		Offline:    offline,
 		StoredAt:   path.Join(dbBasePath, name, "all.zip"),
 		UserAgent:  userAgent,
 		httpClient: httpClient,
-	}
+	}, invs)
+}
+
+// loadZippedDB fetches and loads the archive of db for the packages in invs
+// (see newZippedDB, which builds db from the common settings).
+func loadZippedDB(ctx context.Context, db *zipDB, invs []*extractor.Package) (*zipDB, error) {
 	names := make([]string, 0, len(invs))
 
 	// map the packages to their names ahead of loading,

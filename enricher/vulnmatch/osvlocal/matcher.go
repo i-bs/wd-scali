@@ -119,21 +119,22 @@ func (matcher *localMatcher) loadDBFromCache(ctx context.Context, eco osvconstan
 	}
 
 	url := matcher.archiveURL(eco)
-	db, err := newZippedDB(
-		ctx,
-		matcher.dbBasePath,
-		string(eco),
-		url,
-		matcher.userAgent,
-		!matcher.downloadDB,
-		invs,
-		matcher.httpClient,
-	)
+	db, err := loadZippedDB(ctx, &zipDB{
+		Name:       string(eco),
+		ArchiveURL: url,
+		Offline:    !matcher.downloadDB,
+		StoredAt:   path.Join(matcher.dbBasePath, string(eco), "all.zip"),
+		UserAgent:  matcher.userAgent,
+		httpClient: matcher.httpClient,
+		// strict mode must not be satisfied by a cached copy: the cache is keyed
+		// by ecosystem, so the copy may be stale or from another source
+		NoCacheFallback: matcher.vendorStrict && isVendorFamily(eco),
+	}, invs)
 
 	if err != nil && isVendorFamily(eco) {
 		// An unavailable vendor archive is a warning, not a failure: go on with
 		// an empty database, the packages stay without findings. Strict mode
-		// keeps the error.
+		// keeps the error (also with a cached copy, see NoCacheFallback).
 		warning := unavailable(eco, url, err).Warning()
 		if !matcher.vendorStrict {
 			log.Warnf("%s", warning)

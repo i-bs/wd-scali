@@ -25,6 +25,7 @@ import (
 
 	osvinternal "github.com/bell-sw/osv-internal"
 	"github.com/bell-sw/osv-internal/osvdata"
+	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	"github.com/google/osv-scalibr/plugin"
 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
 )
@@ -32,9 +33,10 @@ import (
 // Options are the settings of the Enricher that have no field in the plugin's
 // proto config; they concern the vendor families (osvinternal.Ecosystems).
 type Options struct {
-	// LocalOnlyEcosystems restricts the enricher to the ecosystems api.osv.dev
-	// does not serve (osvecosystem.IsLocalOnly), whose archives it downloads
-	// as needed; the other packages are left to vulnmatch/osvdev.
+	// LocalOnlyEcosystems restricts the enricher to the ecosystems MatchedLocally
+	// reports, whose archives it downloads as needed; the other packages are
+	// left to vulnmatch/osvdev, which must skip the same ecosystems
+	// (osvdev.Options.MatchedLocally).
 	LocalOnlyEcosystems bool
 	// VendorURL is the base location of the archives of all vendor
 	// families (<url>/<family>/all.zip): an http(s) URL, a file:// URL or a
@@ -47,6 +49,29 @@ type Options struct {
 	// VendorStrict turns an unavailable archive of a vendor family into a
 	// failure of the enricher instead of a warning.
 	VendorStrict bool
+}
+
+// Configured reports whether the family of the ecosystem has a source in the
+// options (VendorFeeds or VendorURL) rather than its built-in default.
+func (o Options) Configured(eco osvconstants.Ecosystem) bool {
+	return configuredSource(eco, o.VendorURL, o.VendorFeeds)
+}
+
+// MatchedLocally reports whether the enricher handles the ecosystem under
+// LocalOnlyEcosystems: those api.osv.dev does not serve and the vendor
+// families with a configured source.
+func (o Options) MatchedLocally(eco osvconstants.Ecosystem) bool {
+	return osvecosystem.IsLocalOnly(eco) || o.Configured(eco)
+}
+
+// configuredSource is Options.Configured on the fields the Enricher and the
+// localMatcher keep.
+func configuredSource(eco osvconstants.Ecosystem, vendorURL string, feeds map[string]string) bool {
+	if !isVendorFamily(eco) {
+		return false
+	}
+
+	return feeds[osvinternal.Family(string(eco))] != "" || vendorURL != ""
 }
 
 // Configure applies opts to p when p is this package's Enricher.
@@ -66,7 +91,7 @@ func Configure(p plugin.Plugin, opts Options) {
 
 // isVendorFamily reports whether the ecosystem is one of osvinternal.Ecosystems.
 func isVendorFamily(eco osvconstants.Ecosystem) bool {
-	return slices.Contains(osvinternal.Ecosystems, string(eco))
+	return slices.Contains(osvinternal.Ecosystems, osvinternal.Family(string(eco)))
 }
 
 // ParseVendorFeeds parses "<family>=<location>" pairs into Options.VendorFeeds;

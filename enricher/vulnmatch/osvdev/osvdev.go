@@ -37,6 +37,7 @@ import (
 
 	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
 	"github.com/google/osv-scalibr/plugin/config"
+	"github.com/ossf/osv-schema/bindings/go/osvconstants"
 	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
 	osvapipb "osv.dev/bindings/go/api"
 )
@@ -60,6 +61,26 @@ var _ enricher.Enricher = &Enricher{}
 type Enricher struct {
 	client              Client
 	initialQueryTimeout time.Duration
+	// see Options
+	matchedLocally func(osvconstants.Ecosystem) bool
+}
+
+// Options are the settings of the Enricher that have no field in the plugin's
+// proto config.
+type Options struct {
+	// MatchedLocally reports the ecosystems another enricher matches from local
+	// archives (osvlocal.Options.MatchedLocally); they are left out of the
+	// api.osv.dev queries, as the ecosystems the API does not serve always are.
+	MatchedLocally func(osvconstants.Ecosystem) bool
+}
+
+// Configure applies opts to p when p is this package's Enricher.
+func Configure(p plugin.Plugin, opts Options) {
+	e, ok := p.(*Enricher)
+	if !ok {
+		return
+	}
+	e.matchedLocally = opts.MatchedLocally
 }
 
 // New creates a new Enricher with the given configuration.
@@ -132,7 +153,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 	pkgs := make([]*extractor.Package, 0, len(inv.Packages))
 	queries := make([]*osvapipb.Query, 0, len(inv.Packages))
 	for _, pkg := range inv.Packages {
-		for _, query := range pkgToQueries(pkg) {
+		for _, query := range e.pkgToQueries(pkg) {
 			pkgs = append(pkgs, pkg)
 			queries = append(queries, query)
 		}
@@ -259,7 +280,7 @@ func (e *Enricher) makeVulnerabilitiesRequest(ctx context.Context, vulnIDs []str
 // pkgToQueries converts a package into the OSV queries to run for it, in
 // preference order: a single commit query, or one version query per candidate
 // package name (see osvutil.QueryNames). Returns nil for unqueryable packages.
-func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
+func (e *Enricher) pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
 	np := osvutil.ParsePackage(pkg)
 
 	// If the ecosystem is GIT, we prioritize commit queries.
@@ -271,9 +292,10 @@ func pkgToQueries(pkg *extractor.Package) []*osvapipb.Query {
 		}}
 	}
 
-	// Ecosystems osv.dev does not serve are matched locally; naming one in a
-	// batch query makes the API reject the whole batch ("invalid ecosystem").
-	if osvecosystem.IsLocalOnly(np.Ecosystem.Ecosystem) {
+	// Ecosystems osv.dev does not serve (naming one makes the API reject the
+	// whole batch, "invalid ecosystem") and those another enricher matches
+	// locally (Options.MatchedLocally) are left out.
+	if osvecosystem.IsLocalOnly(np.Ecosystem.Ecosystem) || (e.matchedLocally != nil && e.matchedLocally(np.Ecosystem.Ecosystem)) {
 		return nil
 	}
 

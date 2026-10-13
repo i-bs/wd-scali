@@ -33,6 +33,7 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 	"github.com/google/osv-scalibr/plugin/config"
 	scalibrversion "github.com/google/osv-scalibr/version"
+	"github.com/ossf/osv-schema/bindings/go/osvconstants"
 )
 
 const (
@@ -162,7 +163,7 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 	// being matched: collect the error and report it at the end.
 	var errs []error
 	for _, pkg := range inv.Packages {
-		if e.localOnly && !osvecosystem.IsLocalOnly(osvutil.ParsePackage(pkg).Ecosystem.Ecosystem) {
+		if e.localOnly && !e.matchedLocally(osvutil.ParsePackage(pkg).Ecosystem.Ecosystem) {
 			continue
 		}
 
@@ -192,6 +193,12 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 	inv.PackageVulns = dedupPackageVulns(inv.PackageVulns)
 
 	return errors.Join(slices.Compact(errs)...)
+}
+
+// matchedLocally is Options.MatchedLocally for the enricher's settings: the
+// ecosystems it handles when it runs next to vulnmatch/osvdev.
+func (e *Enricher) matchedLocally(eco osvconstants.Ecosystem) bool {
+	return osvecosystem.IsLocalOnly(eco) || configuredSource(eco, e.vendorURL, e.vendorFeeds)
 }
 
 // dedupPackageVulns deduplicate package vulnerabilities that have the same pkg and vulnID

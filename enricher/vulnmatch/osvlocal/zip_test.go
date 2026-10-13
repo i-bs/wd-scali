@@ -16,6 +16,7 @@ package osvlocal
 
 import (
 	"errors"
+	"io/fs"
 	"net/http"
 	"os"
 	"path"
@@ -343,6 +344,42 @@ func TestNewZippedDB_Online_WithCacheButNoHashHeader(t *testing.T) {
 		{Id: "GHSA-4"},
 		{Id: "GHSA-5"},
 	})
+}
+
+// A failed fetch falls back to the cached copy unless NoCacheFallback is set,
+// for http(s) and local archives alike.
+func TestLoadZippedDB_NoCacheFallback(t *testing.T) {
+	testDir := createTestDir(t)
+	ts := fakeserver.CreateZipServer(t, func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+	storedAt := determineStoredAtPath(testDir, "my-db")
+	cacheWrite(t, storedAt, fakeserver.ZipOSVs(t, map[string]*osvpb.Vulnerability{"GHSA-1.json": {Id: "GHSA-1"}}))
+
+	// default: the cached copy
+	db, err := newZippedDB(t.Context(), testDir, "my-db", ts.URL, userAgent, false, nil, http.DefaultClient)
+	if err != nil {
+		t.Fatalf("unexpected error \"%v\"", err)
+	}
+	expectDBToHaveOSVs(t, db, []*osvpb.Vulnerability{{Id: "GHSA-1"}})
+
+	var status *httpStatusError
+	_, err = loadZippedDB(t.Context(), &zipDB{Name: "my-db", ArchiveURL: ts.URL, StoredAt: storedAt, UserAgent: userAgent, httpClient: http.DefaultClient, NoCacheFallback: true}, nil)
+	if !errors.As(err, &status) || status.code != http.StatusNotFound {
+		t.Errorf("NoCacheFallback, host answers 404: err = %v, want the HTTP 404 error, not the cached copy", err)
+	}
+
+	_, err = loadZippedDB(t.Context(), &zipDB{Name: "my-db", ArchiveURL: "file://" + path.Join(testDir, "missing.zip"), StoredAt: storedAt, httpClient: http.DefaultClient, NoCacheFallback: true}, nil)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("NoCacheFallback, local archive missing: err = %v, want the not-found error, not the cached copy", err)
+	}
+
+	// the cached copy is untouched and still used when the fallback is allowed
+	db, err = newZippedDB(t.Context(), testDir, "my-db", "file://"+path.Join(testDir, "missing.zip"), userAgent, false, nil, http.DefaultClient)
+	if err != nil {
+		t.Fatalf("unexpected error \"%v\"", err)
+	}
+	expectDBToHaveOSVs(t, db, []*osvpb.Vulnerability{{Id: "GHSA-1"}})
 }
 
 func TestNewZippedDB_Online_WithBadCache(t *testing.T) {
