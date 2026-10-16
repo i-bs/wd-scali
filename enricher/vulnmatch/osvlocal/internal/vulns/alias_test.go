@@ -17,6 +17,8 @@ package vulns_test
 import (
 	"testing"
 
+	osvinternal "github.com/bell-sw/osv-internal"
+	osvdistro "github.com/bell-sw/osv-internal/distro"
 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
 	"github.com/google/osv-scalibr/extractor"
 	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
@@ -27,11 +29,11 @@ import (
 func TestOSV_IsAffectedAs_Alias(t *testing.T) {
 	vuln := buildOSVWithAffected(
 		&osvpb.Affected{
-			Package: &osvpb.Package{Ecosystem: "Alpaquita:23", Name: "openjdk21-lite"},
+			Package: &osvpb.Package{Ecosystem: osvinternal.Ecosystem(osvinternal.EcosystemLinux, "23"), Name: "openjdk21-lite"},
 			Ranges:  []*osvpb.Range{buildEcosystemAffectsRange(&osvpb.Event{Introduced: "21_p37-r0"}, &osvpb.Event{Fixed: "21.0.8_p12-r0"})},
 		},
 		&osvpb.Affected{
-			Package: &osvpb.Package{Ecosystem: "BellSoft Hardened Containers:23", Name: "openjdk21-lite"},
+			Package: &osvpb.Package{Ecosystem: osvinternal.Ecosystem(osvinternal.EcosystemHardened, "23"), Name: "openjdk21-lite"},
 			Ranges:  []*osvpb.Range{buildEcosystemAffectsRange(&osvpb.Event{Introduced: "21_p37-r0"}, &osvpb.Event{Fixed: "21.0.2_p14-r0"})},
 		},
 	)
@@ -43,17 +45,17 @@ func TestOSV_IsAffectedAs_Alias(t *testing.T) {
 		}
 	}
 
-	if vulns.IsAffected(vuln, pkg("alpaquita", "21.0.2_p14-r1")) {
+	if vulns.IsAffected(vuln, pkg(osvdistro.IDLinux, "21.0.2_p14-r1")) {
 		t.Errorf("IsAffected() under the origin name must not match an advisory keyed on the alias")
 	}
-	if !vulns.IsAffectedAs(vuln, pkg("alpaquita", "21.0.2_p14-r1"), "openjdk21-lite") {
+	if !vulns.IsAffectedAs(vuln, pkg(osvdistro.IDLinux, "21.0.2_p14-r1"), "openjdk21-lite") {
 		t.Errorf("IsAffectedAs(openjdk21-lite) = false, want true for 21.0.2_p14-r1 in [21_p37-r0, 21.0.8_p12-r0)")
 	}
-	if vulns.IsAffectedAs(vuln, pkg("alpaquita", "21.0.8_p12-r0"), "openjdk21-lite") {
+	if vulns.IsAffectedAs(vuln, pkg(osvdistro.IDLinux, "21.0.8_p12-r0"), "openjdk21-lite") {
 		t.Errorf("IsAffectedAs(openjdk21-lite) = true for the fixed version 21.0.8_p12-r0")
 	}
 	// the BHC family has its own range for the same package: fixed at 21.0.2_p14-r0
-	if vulns.IsAffectedAs(vuln, pkg("bellsoft-hardened-containers", "21.0.2_p14-r1"), "openjdk21-lite") {
+	if vulns.IsAffectedAs(vuln, pkg(osvdistro.IDHardened, "21.0.2_p14-r1"), "openjdk21-lite") {
 		t.Errorf("IsAffectedAs() evaluated the Alpaquita range for a BellSoft Hardened Containers package")
 	}
 }

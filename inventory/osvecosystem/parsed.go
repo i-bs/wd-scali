@@ -18,9 +18,11 @@ package osvecosystem
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	osvinternal "github.com/bell-sw/osv-internal"
+	"github.com/bell-sw/osv-internal/osvdata"
 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
 )
 
@@ -38,6 +40,11 @@ import (
 //
 //nolint:recvcheck
 const (
+	// EcosystemVendorLinux and EcosystemVendorHardened are the ecosystems of
+	// the vendor's Linux distribution and hardened container images
+	// ("<family>:<VERSION_ID>"), see extractor os/ecosystem.
+	EcosystemVendorLinux    osvconstants.Ecosystem = osvinternal.EcosystemLinux
+	EcosystemVendorHardened osvconstants.Ecosystem = osvinternal.EcosystemHardened
 	// EcosystemVendorJDK is the ecosystem of the vendor's standalone JDK
 	// runtimes ("<family>:<java major>"), see extractor java/vendorjdk.
 	EcosystemVendorJDK osvconstants.Ecosystem = osvinternal.EcosystemJDK
@@ -46,15 +53,19 @@ const (
 	EcosystemVendorNIK osvconstants.Ecosystem = osvinternal.EcosystemNIK
 )
 
+// osvDevBucket is the osv.dev export bucket, where every ecosystem osv.dev
+// serves is published.
+const osvDevBucket = "https://osv-vulnerabilities.storage.googleapis.com"
+
 // IsLocalOnly reports whether the ecosystem is one osv.dev does not serve:
 // its advisories come from local archives only, and api.osv.dev rejects a
-// whole batch query naming it ("invalid ecosystem", HTTP 400).
+// whole batch query naming it ("invalid ecosystem", HTTP 400). That is every
+// vendor family whose default source (osvdata.DefaultBaseURLFor) is not the
+// osv.dev bucket: the standalone runtimes, and the distributions of a vendor
+// that publishes them on its own server.
 func IsLocalOnly(ecosystem osvconstants.Ecosystem) bool {
-	switch ecosystem {
-	case EcosystemVendorJDK, EcosystemVendorNIK:
-		return true
-	}
-	return false
+	family := osvinternal.Family(string(ecosystem))
+	return slices.Contains(osvinternal.Ecosystems, family) && osvdata.DefaultBaseURLFor(family) != osvDevBucket
 }
 
 type Parsed struct {
@@ -121,11 +132,9 @@ func (p Parsed) GetValidity() error {
 	//exhaustive:enforce
 	switch p.Ecosystem {
 	case osvconstants.EcosystemAlmaLinux,
-		osvconstants.EcosystemAlpaquita,
 		osvconstants.EcosystemAlpine,
 		osvconstants.EcosystemAndroid,
 		osvconstants.EcosystemAzureLinux,
-		osvconstants.EcosystemBellSoftHardenedContainers,
 		osvconstants.EcosystemBioconductor,
 		osvconstants.EcosystemBitnami,
 		osvconstants.EcosystemChainguard,
@@ -170,7 +179,9 @@ func (p Parsed) GetValidity() error {
 		osvconstants.EcosystemWolfi,
 		// GIT is a pseudo ecosystem that can be used in queries, so should be considered valid.
 		"GIT",
-		// prototype ecosystems produced by SCALIBR extractors (see above)
+		// the vendor's ecosystems (see above)
+		EcosystemVendorLinux,
+		EcosystemVendorHardened,
 		EcosystemVendorJDK,
 		EcosystemVendorNIK:
 

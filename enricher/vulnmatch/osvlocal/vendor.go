@@ -126,14 +126,12 @@ func ParseVendorFeeds(pairs []string) (map[string]string, error) {
 // <host>/<ecosystem>/all.zip on the archive host (the osv.dev bucket or a
 // mirror), except for the vendor families, which follow the precedence of
 // osvdata.Source.ArchiveURL: the feed of the family, else the vendor base
-// URL, else the built-in default - the archive host for the distributions,
-// osvdata.DefaultProductBaseURL for the standalone runtimes, which the osv.dev
-// bucket does not carry.
+// URL, else the built-in default - the archive host for the families osv.dev
+// carries, the module's default for the others (osvecosystem.IsLocalOnly).
 func (matcher *localMatcher) archiveURL(eco osvconstants.Ecosystem) string {
 	family := string(eco)
 	if isVendorFamily(eco) {
-		inBucket := osvdata.DefaultBaseURLFor(family) == osvdata.DefaultBaseURL
-		if matcher.vendorFeeds[family] != "" || matcher.vendorURL != "" || !inBucket {
+		if matcher.vendorFeeds[family] != "" || matcher.vendorURL != "" || osvecosystem.IsLocalOnly(eco) {
 			src := &osvdata.Source{BaseURL: matcher.vendorURL, URLs: matcher.vendorFeeds}
 			location := src.ArchiveURL(family)
 			lower := strings.ToLower(location)

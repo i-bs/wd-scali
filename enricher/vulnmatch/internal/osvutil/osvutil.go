@@ -153,8 +153,8 @@ func version(pkg *extractor.Package, ecosystem string) string {
 // apk origin is "liberica<major>[-lite]" and the binary package provides
 // "openjdk21-lite-jdk-no-deps". Alpine keys strictly on the origin.
 var providesAliasEcosystems = map[osvconstants.Ecosystem]bool{
-	osvconstants.EcosystemAlpaquita:                  true,
-	osvconstants.EcosystemBellSoftHardenedContainers: true,
+	osvecosystem.EcosystemVendorLinux:    true,
+	osvecosystem.EcosystemVendorHardened: true,
 }
 
 // QueryNames returns the names a vulnerability source should be queried

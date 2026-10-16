@@ -25,9 +25,9 @@ import (
 
 var ecosystems = []string{
 	"AlmaLinux",
-	"Alpaquita",
+	osvinternal.EcosystemLinux,
 	"Alpine",
-	"BellSoft Hardened Containers",
+	osvinternal.EcosystemHardened,
 	"Bioconductor",
 	"Bitnami",
 	"Chainguard",

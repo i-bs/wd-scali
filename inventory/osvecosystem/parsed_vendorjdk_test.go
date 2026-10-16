@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	osvinternal "github.com/bell-sw/osv-internal"
+	"github.com/bell-sw/osv-internal/osvdata"
 
 	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
@@ -55,9 +56,11 @@ func TestParse_VendorNIK(t *testing.T) {
 }
 
 func TestIsLocalOnly(t *testing.T) {
+	// the distributions are local-only when the module does not fetch them from the osv.dev bucket
+	distros := osvdata.DefaultBaseURLFor(osvinternal.EcosystemLinux) != "https://osv-vulnerabilities.storage.googleapis.com"
 	for eco, want := range map[osvconstants.Ecosystem]bool{
 		osvecosystem.EcosystemVendorJDK: true, osvecosystem.EcosystemVendorNIK: true,
-		osvconstants.EcosystemAlpaquita: false, osvconstants.EcosystemBellSoftHardenedContainers: false, osvconstants.EcosystemAlpine: false,
+		osvecosystem.EcosystemVendorLinux: distros, osvecosystem.EcosystemVendorHardened: distros, osvconstants.EcosystemAlpine: false,
 	} {
 		if got := osvecosystem.IsLocalOnly(eco); got != want {
 			t.Errorf("IsLocalOnly(%q) = %v, want %v", eco, got, want)

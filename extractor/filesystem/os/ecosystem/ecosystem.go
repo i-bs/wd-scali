@@ -18,6 +18,7 @@ package ecosystem
 import (
 	"strings"
 
+	osvdistro "github.com/bell-sw/osv-internal/distro"
 	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
 	dpkgmeta "github.com/google/osv-scalibr/extractor/filesystem/os/dpkg/metadata"
 	modulemeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/module/metadata"
@@ -55,14 +56,14 @@ func MakeEcosystem(metadata any) osvecosystem.Parsed {
 		if version == "" {
 			return osvecosystem.FromEcosystem(osvconstants.EcosystemAlpine)
 		}
-		if m.OSID == "alpaquita" {
-			return osvecosystem.Parsed{Ecosystem: osvconstants.EcosystemAlpaquita, Suffix: m.OSVersionID}
+		if m.OSID == osvdistro.IDLinux {
+			return osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorLinux, Suffix: m.OSVersionID}
 		}
 		if m.OSID == "clnstrt" || m.OSID == "cleanstart" {
 			return osvecosystem.Parsed{Ecosystem: osvconstants.EcosystemCleanStart, Suffix: ""}
 		}
-		if m.OSID == "bellsoft-hardened-containers" {
-			return osvecosystem.Parsed{Ecosystem: osvconstants.EcosystemBellSoftHardenedContainers, Suffix: m.OSVersionID}
+		if m.OSID == osvdistro.IDHardened {
+			return osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorHardened, Suffix: m.OSVersionID}
 		}
 		return osvecosystem.Parsed{Ecosystem: osvconstants.EcosystemAlpine, Suffix: m.TrimDistroVersion(version)}
 

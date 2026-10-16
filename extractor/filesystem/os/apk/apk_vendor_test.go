@@ -18,6 +18,8 @@ import (
 	"os"
 	"testing"
 
+	osvinternal "github.com/bell-sw/osv-internal"
+	osvdistro "github.com/bell-sw/osv-internal/distro"
 	"github.com/google/go-cmp/cmp"
 	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
 	"github.com/google/osv-scalibr/extractor/filesystem"
@@ -29,7 +31,7 @@ import (
 // TestExtract_VendorProvides: the provided names are recorded, and the
 // ecosystem and PURL use VERSION_ID verbatim.
 func TestExtract_VendorProvides(t *testing.T) {
-	const osRelease = `ID=alpaquita
+	osRelease := "ID=" + osvdistro.IDLinux + `
 NAME="BellSoft Alpaquita Linux"
 VERSION_ID=23
 PRETTY_NAME="BellSoft Alpaquita Linux Stream 23 (musl)"`
@@ -67,7 +69,7 @@ PRETTY_NAME="BellSoft Alpaquita Linux Stream 23 (musl)"`
 	wantMeta := &apkmeta.Metadata{
 		PackageName:  "liberica21-lite-jdk-no-deps",
 		OriginName:   "liberica21-lite",
-		OSID:         "alpaquita",
+		OSID:         osvdistro.IDLinux,
 		OSVersionID:  "23",
 		Maintainer:   "BellSoft <info@bell-sw.com>",
 		Architecture: "x86_64",
@@ -76,10 +78,10 @@ PRETTY_NAME="BellSoft Alpaquita Linux Stream 23 (musl)"`
 	if diff := cmp.Diff(wantMeta, jdk.Metadata); diff != "" {
 		t.Errorf("metadata (-want +got):\n%s", diff)
 	}
-	if got, want := jdk.Ecosystem().String(), "Alpaquita:23"; got != want {
+	if got, want := jdk.Ecosystem().String(), osvinternal.Ecosystem(osvinternal.EcosystemLinux, "23"); got != want {
 		t.Errorf("Ecosystem() = %q, want %q", got, want)
 	}
-	if got, want := jdk.PURL().String(), "pkg:apk/alpaquita/liberica21-lite-jdk-no-deps@21.0.2_p14-r1?arch=x86_64&distro=23&origin=liberica21-lite"; got != want {
+	if got, want := jdk.PURL().String(), "pkg:apk/"+osvdistro.IDLinux+"/liberica21-lite-jdk-no-deps@21.0.2_p14-r1?arch=x86_64&distro=23&origin=liberica21-lite"; got != want {
 		t.Errorf("PURL() = %q, want %q", got, want)
 	}
 

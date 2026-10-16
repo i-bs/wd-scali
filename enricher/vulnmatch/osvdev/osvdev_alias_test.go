@@ -18,12 +18,14 @@ import (
 	"slices"
 	"testing"
 
+	osvdistro "github.com/bell-sw/osv-internal/distro"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvdev"
 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvdev/fakeclient"
 	"github.com/google/osv-scalibr/extractor"
 	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
 	"github.com/google/osv-scalibr/inventory"
+	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	"github.com/google/osv-scalibr/purl"
 	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
 )
@@ -31,10 +33,14 @@ import (
 // TestEnrich_ProvidesAlias: the names of osvutil.QueryNames are queried in
 // order and the first one osv.dev knows wins.
 func TestEnrich_ProvidesAlias(t *testing.T) {
+	// the distributions of a vendor that serves them itself are never queried (osvecosystem.IsLocalOnly)
+	if osvecosystem.IsLocalOnly(osvecosystem.EcosystemVendorLinux) {
+		t.Skip("the vendor's distributions are not on osv.dev")
+	}
 	alpaquitaJDK := &extractor.Package{
 		Name: "liberica21-lite-jdk-no-deps", Version: "21.0.2_p14-r1", PURLType: purl.TypeApk,
 		Metadata: &apkmeta.Metadata{
-			OSID: "alpaquita", OSVersionID: "23",
+			OSID: osvdistro.IDLinux, OSVersionID: "23",
 			PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite",
 			Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
 		},
@@ -42,7 +48,7 @@ func TestEnrich_ProvidesAlias(t *testing.T) {
 	alpaquitaGlibc := &extractor.Package{
 		Name: "glibc-utils", Version: "2.37.0-r0", PURLType: purl.TypeApk,
 		Metadata: &apkmeta.Metadata{
-			OSID: "alpaquita", OSVersionID: "stream",
+			OSID: osvdistro.IDLinux, OSVersionID: "stream",
 			PackageName: "glibc-utils", OriginName: "glibc",
 			Provides: []string{"glibc-bin"},
 		},

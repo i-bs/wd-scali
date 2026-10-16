@@ -17,6 +17,7 @@ package osvutil_test
 import (
 	"testing"
 
+	osvdistro "github.com/bell-sw/osv-internal/distro"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/osv-scalibr/enricher/vulnmatch/internal/osvutil"
 	"github.com/google/osv-scalibr/extractor"
@@ -40,7 +41,7 @@ func TestQueryNames(t *testing.T) {
 			pkg: &extractor.Package{
 				PURLType: purl.TypeApk, Name: "liberica21-lite-jdk-no-deps", Version: "21.0.2_p14-r1",
 				Metadata: &apkmetadata.Metadata{
-					OSID: "alpaquita", OSVersionID: "23",
+					OSID: osvdistro.IDLinux, OSVersionID: "23",
 					PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite",
 					Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
 				},
@@ -53,7 +54,7 @@ func TestQueryNames(t *testing.T) {
 			pkg: &extractor.Package{
 				PURLType: purl.TypeApk, Name: "liberica21", Version: "21.0.2_p14-r1",
 				Metadata: &apkmetadata.Metadata{
-					OSID: "bellsoft-hardened-containers", OSVersionID: "stream",
+					OSID: osvdistro.IDHardened, OSVersionID: "stream",
 					PackageName: "liberica21", OriginName: "liberica21",
 					Provides: []string{"openjdk21", "java-jdk"},
 				},
@@ -65,7 +66,7 @@ func TestQueryNames(t *testing.T) {
 			pkg: &extractor.Package{
 				PURLType: purl.TypeApk, Name: "glibc-utils", Version: "2.43.0-r10",
 				Metadata: &apkmetadata.Metadata{
-					OSID: "alpaquita", OSVersionID: "stream",
+					OSID: osvdistro.IDLinux, OSVersionID: "stream",
 					PackageName: "glibc-utils", OriginName: "glibc",
 					Provides: []string{"glibc-utils", "glibc"},
 				},
@@ -88,7 +89,7 @@ func TestQueryNames(t *testing.T) {
 			name: "alpaquita package without provides",
 			pkg: &extractor.Package{
 				PURLType: purl.TypeApk, Name: "zlib", Version: "1.3.2-r1",
-				Metadata: &apkmetadata.Metadata{OSID: "alpaquita", OSVersionID: "25", PackageName: "zlib", OriginName: "zlib"},
+				Metadata: &apkmetadata.Metadata{OSID: osvdistro.IDLinux, OSVersionID: "25", PackageName: "zlib", OriginName: "zlib"},
 			},
 			want: []string{"zlib"},
 		},

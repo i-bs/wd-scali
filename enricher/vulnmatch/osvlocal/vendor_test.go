@@ -31,6 +31,7 @@ import (
 	"github.com/google/osv-scalibr/extractor"
 	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
 	"github.com/google/osv-scalibr/inventory"
+	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	"github.com/google/osv-scalibr/log"
 	"github.com/google/osv-scalibr/purl"
 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
@@ -116,10 +117,13 @@ func unavailableAt(family, reason, source string) string {
 	return (&osvdata.UnavailableError{Family: family, Reason: reason, URL: source}).Warning()
 }
 
-// distroKnown reports whether the module's distribution families are the ones
-// osv-scalibr and osv-schema know; the apk cases below apply only then.
-func distroKnown() bool {
-	return famLinux == string(osvconstants.EcosystemAlpaquita) && famHardened == string(osvconstants.EcosystemBellSoftHardenedContainers)
+// defaultURL is the built-in archive location of a vendor distribution: the
+// archive host when osv.dev carries it, else the module's default.
+func defaultURL(host, family string) string {
+	if osvecosystem.IsLocalOnly(osvconstants.Ecosystem(family)) {
+		return osvdata.DefaultBaseURLFor(family) + "/" + url.PathEscape(family) + "/all.zip"
+	}
+	return host + "/" + family + "/all.zip"
 }
 
 // The runtime archives are requested from the module's default location;
@@ -224,11 +228,11 @@ func TestArchiveURL(t *testing.T) {
 		eco   string
 		want  string
 	}{
-		{"defaults: the distribution from the bucket", osvDevBucket, "", nil, famLinux, osvDevBucket + "/" + famLinux + "/all.zip"},
-		{"defaults: the hardened images from the bucket", osvDevBucket, "", nil, famHardened, osvDevBucket + "/" + famHardened + "/all.zip"},
+		{"defaults: the distribution from the bucket, unless local-only", osvDevBucket, "", nil, famLinux, defaultURL(osvDevBucket, famLinux)},
+		{"defaults: the hardened images from the bucket, unless local-only", osvDevBucket, "", nil, famHardened, defaultURL(osvDevBucket, famHardened)},
 		{"defaults: the JDK from the module's default", osvDevBucket, "", nil, famJDK, wantJDKURL},
 		{"defaults: the NIK from the module's default", osvDevBucket, "", nil, famNIK, wantNIKURL},
-		{"bucket mirror serves the distribution", mirror, "", nil, famLinux, mirror + "/" + famLinux + "/all.zip"},
+		{"bucket mirror serves the distribution, unless local-only", mirror, "", nil, famLinux, defaultURL(mirror, famLinux)},
 		{"bucket mirror never serves the JDK", mirror, "", nil, famJDK, wantJDKURL},
 		{"bucket mirror serves other ecosystems", mirror, "https://bell.example/osv", nil, "PyPI", mirror + "/PyPI/all.zip"},
 		{"vendor URL: the distribution", mirror, "https://bell.example/osv/", nil, famLinux, "https://bell.example/osv/" + url.PathEscape(famLinux) + "/all.zip"},
@@ -334,13 +338,9 @@ func TestEnrich_ConfiguredSourceUnavailable(t *testing.T) {
 	w.lines = nil
 	e = &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: createTestDir(t), download: true, httpClient: &http.Client{Transport: rt}}
 	Configure(e, Options{VendorURL: "https://bell.example/osv", VendorStrict: true})
-	pkgs, families := []*extractor.Package{vendorJDKPkg(ecoJDK21, "jdk", "21.0.2+14")}, []string{famJDK}
-	if distroKnown() {
-		pkgs, families = append(pkgs, aliasJDK), append(families, famLinux)
-	}
-	inv = &inventory.Inventory{Packages: pkgs}
+	inv = &inventory.Inventory{Packages: []*extractor.Package{vendorJDKPkg(ecoJDK21, "jdk", "21.0.2+14"), aliasJDK}}
 	err := e.Enrich(t.Context(), nil, inv)
-	for _, family := range families {
+	for _, family := range []string{famJDK, famLinux} {
 		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("%s OSV data for %q is unavailable (HTTP 404)", osvinternal.Vendor, family)) {
 			t.Errorf("Enrich() = %v, want an error naming %q", err, family)
 		}
@@ -407,9 +407,6 @@ func TestEnrich_LocalOnlyEcosystems(t *testing.T) {
 
 	// --vendor-url configures every vendor family: their archives are
 	// consulted; the PyPI package is still left to api.osv.dev
-	if !distroKnown() {
-		t.Skip("the apk packages of the fixtures belong to the distributions osv-scalibr names, not the module's")
-	}
 	e = &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: createTestDir(t), download: false, httpClient: http.DefaultClient}
 	Configure(e, Options{LocalOnlyEcosystems: true, VendorURL: ts.URL})
 	inv = &inventory.Inventory{Packages: []*extractor.Package{aliasJDK, aliasGlibc, aliasBHC, pypi, jdk}}
@@ -436,14 +433,14 @@ func TestOptions_MatchedLocally(t *testing.T) {
 		matchedLocally bool
 	}{
 		{"nothing configured: the JDK is local-only", Options{}, famJDK, false, true},
-		{"nothing configured: the distribution goes to the API", Options{}, famLinux, false, false},
+		{"nothing configured: the distribution goes to the API, unless local-only", Options{}, famLinux, false, osvecosystem.IsLocalOnly(osvecosystem.EcosystemVendorLinux)},
 		{"nothing configured: PyPI goes to the API", Options{}, "PyPI", false, false},
 		{"URL: the distribution", Options{VendorURL: "/srv/osv"}, famLinux, true, true},
 		{"URL: the hardened images", Options{VendorURL: "https://bell.example/osv"}, famHardened, true, true},
 		{"URL: the NIK", Options{VendorURL: "https://bell.example/osv"}, famNIK, true, true},
 		{"URL: PyPI is not a vendor family", Options{VendorURL: "https://bell.example/osv"}, "PyPI", false, false},
 		{"feed: the family", Options{VendorFeeds: map[string]string{famLinux: "/srv/a.zip"}}, famLinux, true, true},
-		{"feed: another family", Options{VendorFeeds: map[string]string{famLinux: "/srv/a.zip"}}, famHardened, false, false},
+		{"feed: another family goes to the API, unless local-only", Options{VendorFeeds: map[string]string{famLinux: "/srv/a.zip"}}, famHardened, false, osvecosystem.IsLocalOnly(osvecosystem.EcosystemVendorHardened)},
 		{"feed: a full ecosystem string", Options{VendorFeeds: map[string]string{famLinux: "/srv/a.zip"}}, famLinux + ":stream", true, true},
 	}
 	for _, tt := range tests {
@@ -465,17 +462,12 @@ func TestEnrich_OfflineNoCache(t *testing.T) {
 	dir := createTestDir(t)
 	e := &Enricher{zippedDBRemoteHost: osvDevBucket, localPath: dir, download: false, httpClient: &http.Client{Transport: rt}}
 
-	pkgs := []*extractor.Package{vendorJDKPkg(ecoJDK21, "jdk", "21.0.2+14")}
-	want := []string{unavailableAt(famJDK, "offline and not cached", wantJDKURL)}
-	if distroKnown() {
-		pkgs = []*extractor.Package{aliasJDK, aliasBHC, pkgs[0]}
-		want = []string{
-			unavailableAt(famLinux, "offline and not cached", osvDevBucket+"/"+famLinux+"/all.zip"),
-			unavailableAt(famHardened, "offline and not cached", osvDevBucket+"/"+famHardened+"/all.zip"),
-			want[0],
-		}
+	inv := &inventory.Inventory{Packages: []*extractor.Package{aliasJDK, aliasBHC, vendorJDKPkg(ecoJDK21, "jdk", "21.0.2+14")}}
+	want := []string{
+		unavailableAt(famLinux, "offline and not cached", defaultURL(osvDevBucket, famLinux)),
+		unavailableAt(famHardened, "offline and not cached", defaultURL(osvDevBucket, famHardened)),
+		unavailableAt(famJDK, "offline and not cached", wantJDKURL),
 	}
-	inv := &inventory.Inventory{Packages: pkgs}
 	if err := e.Enrich(t.Context(), nil, inv); err != nil {
 		t.Fatalf("Enrich() = %v, want no error for vendor families", err)
 	}

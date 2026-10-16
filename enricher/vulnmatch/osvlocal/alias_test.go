@@ -23,10 +23,13 @@ import (
 	"strings"
 	"testing"
 
+	osvinternal "github.com/bell-sw/osv-internal"
+	osvdistro "github.com/bell-sw/osv-internal/distro"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/fakeserver"
 	"github.com/google/osv-scalibr/extractor"
 	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
+	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	"github.com/google/osv-scalibr/purl"
 	osvpb "github.com/ossf/osv-schema/bindings/go/osvschema"
 )
@@ -35,35 +38,37 @@ func vendorOSVs() map[string]*osvpb.Vulnerability {
 	rng := func(introduced, fixed string) []*osvpb.Range {
 		return []*osvpb.Range{{Type: osvpb.Range_ECOSYSTEM, Events: []*osvpb.Event{{Introduced: introduced}, {Fixed: fixed}}}}
 	}
+	linux23, linuxStream := osvinternal.Ecosystem(famLinux, "23"), osvinternal.Ecosystem(famLinux, "stream")
+	hardened23, hardenedStream := osvinternal.Ecosystem(famHardened, "23"), osvinternal.Ecosystem(famHardened, "stream")
 	return map[string]*osvpb.Vulnerability{
 		"BELL-CVE-2025-24855.json": {
 			Id:       "BELL-CVE-2025-24855",
 			Upstream: []string{"CVE-2025-24855"},
 			Affected: []*osvpb.Affected{
-				{Package: &osvpb.Package{Ecosystem: "Alpaquita:23", Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
-				{Package: &osvpb.Package{Ecosystem: "Alpaquita:stream", Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
-				{Package: &osvpb.Package{Ecosystem: "BellSoft Hardened Containers:23", Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
+				{Package: &osvpb.Package{Ecosystem: linux23, Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
+				{Package: &osvpb.Package{Ecosystem: linuxStream, Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
+				{Package: &osvpb.Package{Ecosystem: hardened23, Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.8_p12-r0")},
 			},
 		},
 		"BELL-CVE-2024-20918.json": {
 			Id:       "BELL-CVE-2024-20918",
 			Upstream: []string{"CVE-2024-20918"},
 			Affected: []*osvpb.Affected{
-				{Package: &osvpb.Package{Ecosystem: "Alpaquita:23", Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.2_p14-r0")},
+				{Package: &osvpb.Package{Ecosystem: linux23, Name: "openjdk21-lite"}, Ranges: rng("21_p37-r0", "21.0.2_p14-r0")},
 			},
 		},
 		"BELL-CVE-2026-19499.json": {
 			Id:       "BELL-CVE-2026-19499",
 			Upstream: []string{"CVE-2026-19499"},
 			Affected: []*osvpb.Affected{
-				{Package: &osvpb.Package{Ecosystem: "Alpaquita:stream", Name: "glibc"}, Ranges: rng("0", "2.43.0-r6")},
-				{Package: &osvpb.Package{Ecosystem: "BellSoft Hardened Containers:stream", Name: "glibc"}, Ranges: rng("0", "2.43.0-r6")},
+				{Package: &osvpb.Package{Ecosystem: linuxStream, Name: "glibc"}, Ranges: rng("0", "2.43.0-r6")},
+				{Package: &osvpb.Package{Ecosystem: hardenedStream, Name: "glibc"}, Ranges: rng("0", "2.43.0-r6")},
 			},
 		},
 		"BELL-ALIAS-TRAP.json": {
 			Id: "BELL-ALIAS-TRAP",
 			Affected: []*osvpb.Affected{
-				{Package: &osvpb.Package{Ecosystem: "Alpaquita:stream", Name: "glibc-bin"}, Ranges: rng("0", "9")},
+				{Package: &osvpb.Package{Ecosystem: linuxStream, Name: "glibc-bin"}, Ranges: rng("0", "9")},
 			},
 		},
 	}
@@ -73,7 +78,7 @@ var (
 	aliasJDK = &extractor.Package{
 		Name: "liberica21-lite-jdk-no-deps", Version: "21.0.2_p14-r1", PURLType: purl.TypeApk,
 		Metadata: &apkmeta.Metadata{
-			OSID: "alpaquita", OSVersionID: "23",
+			OSID: osvdistro.IDLinux, OSVersionID: "23",
 			PackageName: "liberica21-lite-jdk-no-deps", OriginName: "liberica21-lite",
 			Provides: []string{"java-jdk-no-deps", "java21-jdk-no-deps", "openjdk21-lite-jdk-no-deps"},
 		},
@@ -81,7 +86,7 @@ var (
 	aliasGlibc = &extractor.Package{
 		Name: "glibc-utils", Version: "2.37.0-r0", PURLType: purl.TypeApk,
 		Metadata: &apkmeta.Metadata{
-			OSID: "alpaquita", OSVersionID: "stream",
+			OSID: osvdistro.IDLinux, OSVersionID: "stream",
 			PackageName: "glibc-utils", OriginName: "glibc",
 			Provides: []string{"glibc-bin"},
 		},
@@ -89,12 +94,26 @@ var (
 	aliasBHC = &extractor.Package{
 		Name: "liberica21-lite-jre-no-deps", Version: "21.0.9_p11-r0", PURLType: purl.TypeApk,
 		Metadata: &apkmeta.Metadata{
-			OSID: "bellsoft-hardened-containers", OSVersionID: "23",
+			OSID: osvdistro.IDHardened, OSVersionID: "23",
 			PackageName: "liberica21-lite-jre-no-deps", OriginName: "liberica21-lite",
 			Provides: []string{"openjdk21-lite-jre-no-deps"},
 		},
 	}
 )
+
+// aliasMatcher is newlocalMatcher with host also as the vendor source when the
+// module serves the distributions itself (local-only), as --vendor-url would.
+func aliasMatcher(t *testing.T, dir string, download bool, host string) *localMatcher {
+	t.Helper()
+	m, err := newlocalMatcher(dir, userAgent, download, host, http.DefaultClient)
+	if err != nil {
+		t.Fatalf("newlocalMatcher: %v", err)
+	}
+	if osvecosystem.IsLocalOnly(osvecosystem.EcosystemVendorLinux) {
+		m.vendorURL = host
+	}
+	return m
+}
 
 func matchIDs(t *testing.T, m *localMatcher, pkg *extractor.Package, all []*extractor.Package) []string {
 	t.Helper()
@@ -123,10 +142,7 @@ func TestLocalMatcher_ProvidesAlias(t *testing.T) {
 		_, _ = fakeserver.WriteOSVsZip(t, w, vendorOSVs())
 	})
 
-	m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
-	if err != nil {
-		t.Fatalf("newlocalMatcher: %v", err)
-	}
+	m := aliasMatcher(t, testDir, true, ts.URL)
 	all := []*extractor.Package{aliasJDK, aliasGlibc, aliasBHC}
 
 	// 21.0.2_p14-r1 is past the 21.0.2_p14-r0 fix of BELL-CVE-2024-20918 and
@@ -144,7 +160,7 @@ func TestLocalMatcher_ProvidesAlias(t *testing.T) {
 	}
 
 	// the archives were cached under <dir>/osv-scalibr/<ecosystem>/all.zip
-	for _, eco := range []string{"Alpaquita", "BellSoft Hardened Containers"} {
+	for _, eco := range []string{famLinux, famHardened} {
 		if _, err := os.Stat(filepath.Join(testDir, "osv-scalibr", eco, "all.zip")); err != nil {
 			t.Errorf("archive for %q not cached: %v", eco, err)
 		}
@@ -160,28 +176,22 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
 	t.Run("file url", func(t *testing.T) {
 		testDir := createTestDir(t)
 		hostDir := filepath.Join(testDir, "host")
-		cacheWrite(t, path.Join(hostDir, "Alpaquita", "all.zip"), archive)
+		cacheWrite(t, path.Join(hostDir, famLinux, "all.zip"), archive)
 
-		m, err := newlocalMatcher(filepath.Join(testDir, "cache"), userAgent, true, "file://"+hostDir, http.DefaultClient)
-		if err != nil {
-			t.Fatalf("newlocalMatcher: %v", err)
-		}
+		m := aliasMatcher(t, filepath.Join(testDir, "cache"), true, "file://"+hostDir)
 		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
 			t.Errorf("(-want +got):\n%s", diff)
 		}
-		if _, err := os.Stat(filepath.Join(testDir, "cache", "osv-scalibr", "Alpaquita", "all.zip")); err != nil {
+		if _, err := os.Stat(filepath.Join(testDir, "cache", "osv-scalibr", famLinux, "all.zip")); err != nil {
 			t.Errorf("archive read from file:// was not cached: %v", err)
 		}
 	})
 
 	t.Run("legacy layout offline", func(t *testing.T) {
 		testDir := createTestDir(t)
-		cacheWrite(t, path.Join(testDir, "osv-scanner", "Alpaquita", "all.zip"), archive)
+		cacheWrite(t, path.Join(testDir, "osv-scanner", famLinux, "all.zip"), archive)
 
-		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
-		if err != nil {
-			t.Fatalf("newlocalMatcher: %v", err)
-		}
+		m := aliasMatcher(t, testDir, false, "http://127.0.0.1:1")
 		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
 			t.Errorf("(-want +got):\n%s", diff)
 		}
@@ -189,10 +199,7 @@ func TestLocalMatcher_FileURLAndLegacyCache(t *testing.T) {
 
 	t.Run("missing offline", func(t *testing.T) {
 		testDir := createTestDir(t)
-		m, err := newlocalMatcher(testDir, userAgent, false, "http://127.0.0.1:1", http.DefaultClient)
-		if err != nil {
-			t.Fatalf("newlocalMatcher: %v", err)
-		}
+		m := aliasMatcher(t, testDir, false, "http://127.0.0.1:1")
 		// strict: for a family of the vendor's products this is only a warning by default (vendor_test.go)
 		m.vendorStrict = true
 		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
@@ -213,12 +220,9 @@ func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
 
 	t.Run("cached copy kept on 404", func(t *testing.T) {
 		testDir := createTestDir(t)
-		cacheWrite(t, path.Join(testDir, "osv-scalibr", "Alpaquita", "all.zip"), archive)
+		cacheWrite(t, path.Join(testDir, "osv-scalibr", famLinux, "all.zip"), archive)
 
-		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
-		if err != nil {
-			t.Fatalf("newlocalMatcher: %v", err)
-		}
+		m := aliasMatcher(t, testDir, true, ts.URL)
 		if diff := cmp.Diff([]string{"BELL-CVE-2025-24855"}, matchIDs(t, m, aliasJDK, []*extractor.Package{aliasJDK})); diff != "" {
 			t.Errorf("(-want +got):\n%s", diff)
 		}
@@ -226,10 +230,7 @@ func TestLocalMatcher_DownloadFailureUsesCache(t *testing.T) {
 
 	t.Run("no cache and 404 is an error", func(t *testing.T) {
 		testDir := createTestDir(t)
-		m, err := newlocalMatcher(testDir, userAgent, true, ts.URL, http.DefaultClient)
-		if err != nil {
-			t.Fatalf("newlocalMatcher: %v", err)
-		}
+		m := aliasMatcher(t, testDir, true, ts.URL)
 		m.vendorStrict = true
 		if _, err := m.MatchVulnerabilities(t.Context(), aliasJDK, []*extractor.Package{aliasJDK}); err == nil {
 			t.Errorf("expected an error, got none")

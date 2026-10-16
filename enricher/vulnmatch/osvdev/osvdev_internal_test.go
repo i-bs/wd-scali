@@ -18,10 +18,12 @@ import (
 	"testing"
 
 	osvinternal "github.com/bell-sw/osv-internal"
+	osvdistro "github.com/bell-sw/osv-internal/distro"
 
 	"github.com/google/osv-scalibr/extractor"
 	vendorjdkmeta "github.com/google/osv-scalibr/extractor/filesystem/language/java/vendorjdk/metadata"
 	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
+	"github.com/google/osv-scalibr/inventory/osvecosystem"
 	"github.com/google/osv-scalibr/purl"
 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
 )
@@ -45,13 +47,17 @@ func TestPkgToQueries_LocalOnlyEcosystem(t *testing.T) {
 // The ecosystems another enricher was configured to match locally
 // (Options.MatchedLocally) are not queried either; the others are unaffected.
 func TestPkgToQueries_MatchedLocally(t *testing.T) {
+	// the distributions of a vendor that serves them itself are never queried (osvecosystem.IsLocalOnly)
+	if osvecosystem.IsLocalOnly(osvecosystem.EcosystemVendorLinux) {
+		t.Skip("the vendor's distributions are not on osv.dev")
+	}
 	linux := &extractor.Package{
 		Name: "glibc-utils", Version: "2.37.0-r0", PURLType: purl.TypeApk,
-		Metadata: &apkmeta.Metadata{OSID: "alpaquita", OSVersionID: "stream", PackageName: "glibc-utils", OriginName: "glibc"},
+		Metadata: &apkmeta.Metadata{OSID: osvdistro.IDLinux, OSVersionID: "stream", PackageName: "glibc-utils", OriginName: "glibc"},
 	}
 	hardened := &extractor.Package{
 		Name: "zlib", Version: "1.3.1-r0", PURLType: purl.TypeApk,
-		Metadata: &apkmeta.Metadata{OSID: "bellsoft-hardened-containers", OSVersionID: "stream", PackageName: "zlib", OriginName: "zlib"},
+		Metadata: &apkmeta.Metadata{OSID: osvdistro.IDHardened, OSVersionID: "stream", PackageName: "zlib", OriginName: "zlib"},
 	}
 	npm := &extractor.Package{Name: "express", Version: "4.17.1", PURLType: purl.TypeNPM}
 
@@ -62,7 +68,7 @@ func TestPkgToQueries_MatchedLocally(t *testing.T) {
 		}
 	}
 
-	Configure(e, Options{MatchedLocally: func(eco osvconstants.Ecosystem) bool { return eco == osvconstants.EcosystemAlpaquita }})
+	Configure(e, Options{MatchedLocally: func(eco osvconstants.Ecosystem) bool { return eco == osvecosystem.EcosystemVendorLinux }})
 	if got := e.pkgToQueries(linux); len(got) != 0 {
 		t.Errorf("Linux family matched locally: pkgToQueries() = %d queries, want none", len(got))
 	}

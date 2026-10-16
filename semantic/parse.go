@@ -54,11 +54,11 @@ func Parse(str string, ecosystem string) (Version, error) {
 	switch ecosystem {
 	case "AlmaLinux":
 		return ParseRedHatVersion(str), nil
-	case "Alpaquita":
+	case osvinternal.EcosystemLinux:
 		return ParseAlpineVersion(str)
 	case "Alpine":
 		return ParseAlpineVersion(str)
-	case "BellSoft Hardened Containers":
+	case osvinternal.EcosystemHardened:
 		return ParseAlpineVersion(str)
 	case "Bitnami":
 		return ParseSemverVersion(str), nil

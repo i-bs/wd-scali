@@ -17,6 +17,8 @@ package ecosystem_test
 import (
 	"testing"
 
+	osvinternal "github.com/bell-sw/osv-internal"
+	osvdistro "github.com/bell-sw/osv-internal/distro"
 	"github.com/google/go-cmp/cmp"
 	apkmeta "github.com/google/osv-scalibr/extractor/filesystem/os/apk/metadata"
 	cosmeta "github.com/google/osv-scalibr/extractor/filesystem/os/cos/metadata"
@@ -62,34 +64,34 @@ func TestMakeEcosystemAPK(t *testing.T) {
 		{
 			desc: "BellSoft 1st case",
 			metadata: &apkmeta.Metadata{
-				OSID:        "alpaquita",
+				OSID:        osvdistro.IDLinux,
 				OSVersionID: "23",
 			},
-			want: "Alpaquita:23",
+			want: osvinternal.Ecosystem(osvinternal.EcosystemLinux, "23"),
 		},
 		{
 			desc: "BellSoft 2nd case",
 			metadata: &apkmeta.Metadata{
-				OSID:        "alpaquita",
+				OSID:        osvdistro.IDLinux,
 				OSVersionID: "stream",
 			},
-			want: "Alpaquita:stream",
+			want: osvinternal.Ecosystem(osvinternal.EcosystemLinux, "stream"),
 		},
 		{
 			desc: "BellSoft 3rd case",
 			metadata: &apkmeta.Metadata{
-				OSID:        "bellsoft-hardened-containers",
+				OSID:        osvdistro.IDHardened,
 				OSVersionID: "23",
 			},
-			want: "BellSoft Hardened Containers:23",
+			want: osvinternal.Ecosystem(osvinternal.EcosystemHardened, "23"),
 		},
 		{
 			desc: "BellSoft 4th case",
 			metadata: &apkmeta.Metadata{
-				OSID:        "bellsoft-hardened-containers",
+				OSID:        osvdistro.IDHardened,
 				OSVersionID: "stream",
 			},
-			want: "BellSoft Hardened Containers:stream",
+			want: osvinternal.Ecosystem(osvinternal.EcosystemHardened, "stream"),
 		},
 		{
 			desc: "Wolfi",
