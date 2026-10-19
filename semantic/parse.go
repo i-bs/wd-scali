@@ -19,7 +19,6 @@ package semantic
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	osvinternal "github.com/bell-sw/osv-internal"
 )
@@ -44,10 +43,18 @@ func MustParse(str string, ecosystem string) Version {
 // Parse attempts to parse the given string as a version for the specified ecosystem,
 // returning an ErrUnsupportedEcosystem error if the ecosystem is not supported.
 func Parse(str string, ecosystem string) (Version, error) {
-	// Remove the version suffix from the ecosystem name.
-	parts := strings.Split(ecosystem, ":")
-	if len(parts) > 1 {
-		ecosystem = parts[0]
+	// Remove the version suffix from the ecosystem name (a family of the
+	// vendor's module is recognised first: one may contain colons).
+	ecosystem = osvinternal.Family(ecosystem)
+
+	// The vendor's standalone products: any number of JDK and NIK families.
+	if p := osvinternal.ProductOf(ecosystem); p != nil {
+		switch p.Kind {
+		case osvinternal.KindJDK:
+			return ParseVendorJDKVersion(str)
+		case osvinternal.KindNIK:
+			return ParseVendorNIKVersion(str)
+		}
 	}
 
 	// TODO(#457): support more ecosystems
@@ -86,10 +93,6 @@ func Parse(str string, ecosystem string) (Version, error) {
 		return ParseSemverVersion(str), nil
 	case "Julia":
 		return ParseSemverVersion(str), nil
-	case osvinternal.EcosystemJDK:
-		return ParseVendorJDKVersion(str)
-	case osvinternal.EcosystemNIK:
-		return ParseVendorNIKVersion(str)
 	case "Mageia":
 		return ParseRedHatVersion(str), nil
 	case "Maven":

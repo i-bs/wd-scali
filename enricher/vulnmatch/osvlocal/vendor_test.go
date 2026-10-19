@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	osvinternal "github.com/bell-sw/osv-internal"
+	"github.com/bell-sw/osv-internal/testfix"
 	"github.com/bell-sw/osv-internal/osvdata"
 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/fakeserver"
 	"github.com/google/osv-scalibr/extractor"
@@ -105,7 +106,7 @@ const osvDevBucket = "https://osv-vulnerabilities.storage.googleapis.com"
 // The vendor families and ecosystems of the module, and where the module
 // fetches the product archives by default.
 var (
-	famLinux, famHardened, famJDK, famNIK = osvinternal.EcosystemLinux, osvinternal.EcosystemHardened, osvinternal.EcosystemJDK, osvinternal.EcosystemNIK
+	famLinux, famHardened, famJDK, famNIK = osvinternal.EcosystemLinux, osvinternal.EcosystemHardened, testfix.Product(osvinternal.KindJDK).Family, testfix.Product(osvinternal.KindNIK).Family
 	ecoJDK21, ecoJDK8, ecoNIK2321         = osvinternal.Ecosystem(famJDK, "21"), osvinternal.Ecosystem(famJDK, "8"), osvinternal.Ecosystem(famNIK, "23-21")
 	wantJDKURL                            = osvdata.DefaultProductBaseURL + "/" + url.PathEscape(famJDK) + "/all.zip"
 	wantNIKURL                            = osvdata.DefaultProductBaseURL + "/" + url.PathEscape(famNIK) + "/all.zip"

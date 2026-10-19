@@ -19,21 +19,22 @@ import (
 	"testing"
 
 	osvinternal "github.com/bell-sw/osv-internal"
+	"github.com/bell-sw/osv-internal/testfix"
 
 	"github.com/google/osv-scalibr/semantic"
 )
 
 func TestVendorJDKVersion_Compare(t *testing.T) {
-	runAgainstEcosystemFixture(t, osvinternal.EcosystemJDK, "vendorjdk-versions.txt")
+	runAgainstEcosystemFixture(t, testfix.Product(osvinternal.KindJDK).Family, "vendorjdk-versions.txt")
 }
 
 func TestVendorNIKVersion_Compare(t *testing.T) {
-	runAgainstEcosystemFixture(t, osvinternal.EcosystemNIK, "vendornik-versions.txt")
+	runAgainstEcosystemFixture(t, testfix.Product(osvinternal.KindNIK).Family, "vendornik-versions.txt")
 }
 
 func TestVendorJDKVersion_Suffix(t *testing.T) {
 	// the ecosystem suffix (Java major line) must not change the comparison
-	v, err := semantic.Parse("21.0.2+14", osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"))
+	v, err := semantic.Parse("21.0.2+14", osvinternal.Ecosystem(testfix.Product(osvinternal.KindJDK).Family, "21"))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
@@ -173,10 +174,14 @@ func TestVendorJDKVersion_CompareUpperBoundStr(t *testing.T) {
 }
 
 func TestParseVendorNIKVersion(t *testing.T) {
+	// a fictional NIK family: its java.vendor.version form carries the family's prefix
+	saved := osvinternal.Products
+	t.Cleanup(func() { osvinternal.Products = saved })
+	osvinternal.Products = []osvinternal.Product{{Family: "Test NIK", PURLName: "test-nik", Kind: osvinternal.KindNIK, VendorVersionPrefix: "Test-NIK-"}}
 	for in, want := range map[string]string{
-		"23.1.0+1": "23.1.0+1",
-		"23.1.8":   "23.1.8",
-		osvinternal.NIKVendorVersionPrefix + "23.1.0-1": "23.1.0+1",
+		"23.1.0+1":          "23.1.0+1",
+		"23.1.8":            "23.1.8",
+		"Test-NIK-23.1.0-1": "23.1.0+1",
 	} {
 		got, err := semantic.ParseVendorNIKVersion(in)
 		if err != nil {

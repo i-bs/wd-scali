@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	osvinternal "github.com/bell-sw/osv-internal"
+	"github.com/bell-sw/osv-internal/testfix"
 	osvdistro "github.com/bell-sw/osv-internal/distro"
 
 	"github.com/google/osv-scalibr/extractor"
@@ -33,7 +34,7 @@ func TestPkgToQueries_LocalOnlyEcosystem(t *testing.T) {
 	e := &Enricher{}
 	jdk := &extractor.Package{
 		Name: "jdk", Version: "21.0.2+14", PURLType: purl.TypeGeneric,
-		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"), Major: 21, Variant: "jdk"},
+		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvinternal.Ecosystem(testfix.Product(osvinternal.KindJDK).Family, "21"), Major: 21, Variant: "jdk"},
 	}
 	if got := e.pkgToQueries(jdk); len(got) != 0 {
 		t.Errorf("pkgToQueries(vendor JDK package) = %d queries, want none", len(got))

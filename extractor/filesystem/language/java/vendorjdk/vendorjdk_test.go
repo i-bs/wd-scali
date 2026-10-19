@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	osvinternal "github.com/bell-sw/osv-internal"
+	"github.com/bell-sw/osv-internal/testfix"
 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
 	"github.com/google/go-cmp/cmp"
 	cpb "github.com/google/osv-scalibr/binary/proto/config_go_proto"
@@ -80,6 +81,13 @@ func scanInput(t *testing.T, root, p string) *filesystem.ScanInput {
 	return &filesystem.ScanInput{FS: fsys, Path: p, Root: root, Reader: f, Info: info}
 }
 
+// The first family of each kind of the module: the synthetic runtimes of the
+// tests carry its vendor-version prefix and are reported in it.
+var (
+	jdkFamily = testfix.Product(osvinternal.KindJDK).Family
+	nikFamily = testfix.Product(osvinternal.KindNIK).Family
+)
+
 // fakeDetector stands in for the osv-internal detector so that the glue can
 // be tested independently of it: every home under a non-"zulu" path is a
 // vendor JDK 21.0.2+14; the JVM library of a home is the first existing
@@ -102,7 +110,7 @@ func fakeDetector() vendorjdk.Detector {
 			}
 		}
 		return &osvjdk.Runtime{
-			Home: home, Major: 21, Variant: variant, Version: "21.0.2+14", Vendor: osvjdk.Vendor,
+			Product: jdkFamily, Home: home, Major: 21, Variant: variant, Version: "21.0.2+14", Vendor: osvjdk.Vendor,
 			LibJVM: libjvm, Evidence: []string{"fake"},
 		}
 	}
@@ -121,7 +129,7 @@ func wantPackage(home, variant, libjvm string) []*extractor.Package {
 	return []*extractor.Package{{
 		Name: variant, Version: "21.0.2+14", PURLType: purl.TypeGeneric,
 		Metadata: &vendorjdkmeta.Metadata{
-			Ecosystem: osvjdk.EcosystemFor(21), PURL: osvjdk.PURL(variant, "21.0.2+14"),
+			Ecosystem: osvjdk.EcosystemFor(jdkFamily, 21), PURL: osvjdk.PURL(jdkFamily, variant, "21.0.2+14"),
 			Home: home, Major: 21, Variant: variant, Vendor: osvjdk.Vendor, LibJVM: libjvm, Evidence: []string{"fake"},
 		},
 		Location: extractor.LocationFromPath(home), Plugins: []string{vendorjdk.Name},
@@ -167,39 +175,39 @@ func TestExtract_Glue(t *testing.T) {
 }
 
 func TestPackageIdentity(t *testing.T) {
-	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
+	nik2321 := osvinternal.Ecosystem(nikFamily, "23-21")
 	jdk := &extractor.Package{
 		Name: "jdk", Version: "21.0.2+14", PURLType: purl.TypeGeneric,
-		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(21), PURL: osvjdk.PURL("jdk", "21.0.2+14"), Home: "opt/jdk-21.0.2", Major: 21, Variant: "jdk"},
+		Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(jdkFamily, 21), PURL: osvjdk.PURL(jdkFamily, "jdk", "21.0.2+14"), Home: "opt/jdk-21.0.2", Major: 21, Variant: "jdk"},
 	}
-	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(21); got != want {
+	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(jdkFamily, 21); got != want {
 		t.Errorf("Ecosystem() = %q, want %q", got, want)
 	}
-	if got, want := jdk.PURL().String(), osvjdk.PURL("jdk", "21.0.2+14"); got != want {
+	if got, want := jdk.PURL().String(), osvjdk.PURL(jdkFamily, "jdk", "21.0.2+14"); got != want {
 		t.Errorf("PURL() = %q, want %q", got, want)
 	}
-	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(21); got != want {
+	if got, want := jdk.Ecosystem().String(), osvjdk.EcosystemFor(jdkFamily, 21); got != want {
 		t.Errorf("ecosystem %q differs from the module's %q", got, want)
 	}
 
 	// the second product family passes through untouched
 	nik := &extractor.Package{
 		Name: "core", Version: "23.1.0+1", PURLType: purl.TypeGeneric,
-		Metadata: &vendorjdkmeta.Metadata{Ecosystem: nik2321, PURL: osvjdk.PURLNIK("core", "23.1.0+1"), Major: 21, Variant: "core"},
+		Metadata: &vendorjdkmeta.Metadata{Ecosystem: nik2321, PURL: osvjdk.PURL(nikFamily, "core", "23.1.0+1"), Major: 21, Variant: "core"},
 	}
 	if got, want := nik.Ecosystem().String(), nik2321; got != want {
 		t.Errorf("Ecosystem() = %q, want %q", got, want)
 	}
-	if got, want := nik.PURL().String(), osvjdk.PURLNIK("core", "23.1.0+1"); got != want {
+	if got, want := nik.PURL().String(), osvjdk.PURL(nikFamily, "core", "23.1.0+1"); got != want {
 		t.Errorf("PURL() = %q, want %q", got, want)
 	}
 
 	// without a purl from the detector the JDK purl is built from variant and version
-	jdk8 := &extractor.Package{Name: "jdk", Version: "8u402+7", PURLType: purl.TypeGeneric, Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(8), Major: 8, Variant: "jdk"}}
-	if got, want := jdk8.PURL().String(), osvjdk.PURL("jdk", "8u402+7"); got != want {
+	jdk8 := &extractor.Package{Name: "jdk", Version: "8u402+7", PURLType: purl.TypeGeneric, Metadata: &vendorjdkmeta.Metadata{Ecosystem: osvjdk.EcosystemFor(jdkFamily, 8), Major: 8, Variant: "jdk"}}
+	if got, want := jdk8.PURL().String(), osvjdk.PURL(jdkFamily, "jdk", "8u402+7"); got != want {
 		t.Errorf("PURL() = %q, want %q", got, want)
 	}
-	if got, want := jdk8.Ecosystem().String(), osvjdk.EcosystemFor(8); got != want {
+	if got, want := jdk8.Ecosystem().String(), osvjdk.EcosystemFor(jdkFamily, 8); got != want {
 		t.Errorf("Ecosystem() = %q, want %q", got, want)
 	}
 }
@@ -208,7 +216,7 @@ func TestPackageIdentity(t *testing.T) {
 // runtimes in testdata (fake JVM libraries carrying the real strings; macOS
 // trees without a JVM library).
 func TestExtract_Detector(t *testing.T) {
-	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
+	nik2321 := osvinternal.Ecosystem(nikFamily, "23-21")
 	testdata := buildTestRuntimes(t)
 	e, _ := vendorjdk.New(&cpb.PluginConfig{})
 
@@ -220,32 +228,32 @@ func TestExtract_Detector(t *testing.T) {
 		wantEco string
 	}{
 		{name: "JDK 21", root: ".", path: "jdk-21.0.2/lib/server/libjvm.so",
-			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
+			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
 		{name: "JDK 21 release file stays silent (JVM library reports)", root: ".", path: "jdk-21.0.2/release"},
 		{name: "JRE 21", root: ".", path: "jre-21.0.2/lib/server/libjvm.so",
-			want: &extractor.Package{Name: "jre", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
+			want: &extractor.Package{Name: "jre", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
 		{name: "JDK 8 (vendor from rt.jar, version from libjvm.so)", root: ".", path: "jdk8u402/jre/lib/amd64/server/libjvm.so",
-			want: &extractor.Package{Name: "jdk", Version: "8u402+7"}, wantEco: osvjdk.EcosystemFor(8)},
+			want: &extractor.Package{Name: "jdk", Version: "8u402+7"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 8)},
 		{name: "JDK 8 rt.jar stays silent (JVM library reports)", root: ".", path: "jdk8u402/jre/lib/rt.jar"},
 		{name: "JDK 21 CSPU (four components)", root: ".", path: "jdk-21.0.12.1/lib/server/libjvm.so",
-			want: &extractor.Package{Name: "jdk", Version: "21.0.12.1+1"}, wantEco: osvjdk.EcosystemFor(21)},
+			want: &extractor.Package{Name: "jdk", Version: "21.0.12.1+1"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
 		{name: "JDK 21 CPU (five components)", root: ".", path: "jdk-21.0.9.0.1/lib/server/libjvm.so",
-			want: &extractor.Package{Name: "jdk", Version: "21.0.9.0.1+1"}, wantEco: osvjdk.EcosystemFor(21)},
+			want: &extractor.Package{Name: "jdk", Version: "21.0.9.0.1+1"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
 		{name: "JDK 8 CSPU", root: ".", path: "jdk8u504/jre/lib/amd64/server/libjvm.so",
-			want: &extractor.Package{Name: "jdk", Version: "8u504+1"}, wantEco: osvjdk.EcosystemFor(8)},
+			want: &extractor.Package{Name: "jdk", Version: "8u504+1"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 8)},
 		{name: "JDK 8 CPU", root: ".", path: "jdk8u481/jre/lib/amd64/server/libjvm.so",
-			want: &extractor.Package{Name: "jdk", Version: "8u481+1"}, wantEco: osvjdk.EcosystemFor(8)},
+			want: &extractor.Package{Name: "jdk", Version: "8u481+1"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 8)},
 		{name: "macOS JDK 21 without JVM library: release file", root: ".", path: "macos/jdk-21.0.2.jdk/release",
-			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
+			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
 		{name: "Windows JDK 21: jvm.dll", root: ".", path: "windows/jdk-21.0.2/bin/server/jvm.dll",
-			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
+			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
 		{name: "NIK 23.1.0 core is reported in its own ecosystem, never as a JDK", root: ".", path: "nik-23.1.0/lib/server/libjvm.so",
 			want: &extractor.Package{Name: "core", Version: "23.1.0+1"}, wantEco: nik2321},
 		{name: "Azul Zulu is not the vendor's", root: ".", path: "zulu21/lib/server/libjvm.so"},
 		{name: "Azul Zulu release file is not the vendor's", root: ".", path: "zulu21/release"},
 		{name: "apk-installed runtime on the vendor Linux is skipped", root: "vendor-linux", path: "usr/lib/jvm/jdk21-lite/lib/server/libjvm.so"},
 		{name: "a runtime under /usr/lib/jvm on Debian is reported", root: "debian", path: "usr/lib/jvm/jdk-21.0.2-x86_64/lib/server/libjvm.so",
-			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(21)},
+			want: &extractor.Package{Name: "jdk", Version: "21.0.2+14"}, wantEco: osvjdk.EcosystemFor(jdkFamily, 21)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -266,10 +274,7 @@ func TestExtract_Detector(t *testing.T) {
 			if p.Name != tt.want.Name || p.Version != tt.want.Version || p.Ecosystem().String() != tt.wantEco {
 				t.Errorf("Extract(%s) = %s %s %s, want %s %s %s", tt.path, p.Ecosystem(), p.Name, p.Version, tt.wantEco, tt.want.Name, tt.want.Version)
 			}
-			wantPURL := osvjdk.PURL(tt.want.Name, tt.want.Version)
-			if osvinternal.Family(tt.wantEco) == osvinternal.EcosystemNIK {
-				wantPURL = osvjdk.PURLNIK(tt.want.Name, tt.want.Version)
-			}
+			wantPURL := osvjdk.PURL(osvinternal.Family(tt.wantEco), tt.want.Name, tt.want.Version)
 			if p.PURL() == nil || p.PURL().String() != wantPURL {
 				t.Errorf("PURL() = %v, want %s", p.PURL(), wantPURL)
 			}

@@ -17,7 +17,6 @@ package semantic
 import (
 	"fmt"
 
-	osvinternal "github.com/bell-sw/osv-internal"
 	"github.com/bell-sw/osv-internal/jdkver"
 	"github.com/bell-sw/osv-internal/nikver"
 )
@@ -58,7 +57,7 @@ func ParseVendorJDKVersion(str string) (VendorJDKVersion, error) {
 	}
 	v, err := jdkver.Parse(str)
 	if err != nil {
-		return VendorJDKVersion{}, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
+		return VendorJDKVersion{}, fmt.Errorf("%w: %q is not a JDK product version", ErrInvalidVersion, str)
 	}
 
 	return VendorJDKVersion{v: v}, nil
@@ -101,14 +100,14 @@ func (v VendorJDKVersion) CompareStr(str string) (int, error) {
 func (v VendorJDKVersion) CompareUpperBoundStr(str string) (int, error) {
 	below, err := jdkver.InRangeVersion(v.v, "", str, "")
 	if err != nil {
-		return 0, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
+		return 0, fmt.Errorf("%w: %q is not a JDK product version", ErrInvalidVersion, str)
 	}
 	if below {
 		return -1, nil
 	}
 	notAbove, err := jdkver.InRangeVersion(v.v, "", "", str)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemJDK)
+		return 0, fmt.Errorf("%w: %q is not a JDK product version", ErrInvalidVersion, str)
 	}
 	if notAbove {
 		return 0, nil
@@ -133,7 +132,7 @@ func ParseVendorNIKVersion(str string) (VendorNIKVersion, error) {
 	}
 	v, err := nikver.Parse(str)
 	if err != nil {
-		return VendorNIKVersion{}, fmt.Errorf("%w: %q is not a %s version", ErrInvalidVersion, str, osvinternal.EcosystemNIK)
+		return VendorNIKVersion{}, fmt.Errorf("%w: %q is not a NIK product version", ErrInvalidVersion, str)
 	}
 
 	return VendorNIKVersion{v: v}, nil

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	osvinternal "github.com/bell-sw/osv-internal"
+	"github.com/bell-sw/osv-internal/testfix"
 
 	"github.com/google/osv-scalibr/enricher/vulnmatch/osvlocal/internal/vulns"
 	"github.com/google/osv-scalibr/extractor"
@@ -49,7 +50,7 @@ func TestOSV_IsAffected_VendorJDKReleaseTypes(t *testing.T) {
 		}
 	}
 
-	jdk21, jdk8 := osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21"), osvinternal.Ecosystem(osvinternal.EcosystemJDK, "8")
+	jdk21, jdk8 := osvinternal.Ecosystem(testfix.Product(osvinternal.KindJDK).Family, "21"), osvinternal.Ecosystem(testfix.Product(osvinternal.KindJDK).Family, "8")
 	tests := []struct {
 		name                                        string
 		ecosystem, version, introduced, fixed, last string

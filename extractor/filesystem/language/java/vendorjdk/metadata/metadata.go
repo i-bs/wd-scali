@@ -18,6 +18,7 @@
 package metadata
 
 import (
+	osvinternal "github.com/bell-sw/osv-internal"
 	osvjdk "github.com/bell-sw/osv-internal/vendorjdk"
 	"github.com/google/osv-scalibr/binary/proto/metadata"
 	"github.com/google/osv-scalibr/inventory/osvecosystem"
@@ -72,14 +73,15 @@ func (m *Metadata) OSVEcosystem() osvecosystem.Parsed {
 }
 
 // MakePackageURL returns the package URL of the runtime; when the detector
-// gave none it is built for a JDK variant.
+// gave none it is built from the family of the ecosystem, the variant and
+// the version.
 func MakePackageURL(version string, m *Metadata) *purl.PackageURL {
 	if m == nil {
 		return nil
 	}
 	s := m.PURL
 	if s == "" {
-		s = osvjdk.PURL(m.Variant, version)
+		s = osvjdk.PURL(osvinternal.Family(m.Ecosystem), m.Variant, version)
 	}
 	p, err := purl.FromString(s)
 	if err != nil {

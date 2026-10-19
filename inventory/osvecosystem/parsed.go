@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strings"
 
 	osvinternal "github.com/bell-sw/osv-internal"
 	"github.com/bell-sw/osv-internal/osvdata"
@@ -45,13 +44,16 @@ const (
 	// ("<family>:<VERSION_ID>"), see extractor os/ecosystem.
 	EcosystemVendorLinux    osvconstants.Ecosystem = osvinternal.EcosystemLinux
 	EcosystemVendorHardened osvconstants.Ecosystem = osvinternal.EcosystemHardened
-	// EcosystemVendorJDK is the ecosystem of the vendor's standalone JDK
-	// runtimes ("<family>:<java major>"), see extractor java/vendorjdk.
-	EcosystemVendorJDK osvconstants.Ecosystem = osvinternal.EcosystemJDK
-	// EcosystemVendorNIK is the ecosystem of the vendor's standalone Native
-	// Image Kit runtimes ("<family>:<nik major>-<java major>").
-	EcosystemVendorNIK osvconstants.Ecosystem = osvinternal.EcosystemNIK
 )
+
+// IsVendorProduct reports whether the ecosystem is one of the vendor's
+// standalone product families (osvinternal.Products; "<family>:<java major>"
+// for a JDK, "<family>:<nik major>-<java major>" for a Native Image Kit, see
+// extractor java/vendorjdk). They are no constants: a vendor may have any
+// number of them, and a family name may contain colons.
+func IsVendorProduct(ecosystem osvconstants.Ecosystem) bool {
+	return osvinternal.ProductOf(string(ecosystem)) != nil
+}
 
 // osvDevBucket is the osv.dev export bucket, where every ecosystem osv.dev
 // serves is published.
@@ -179,13 +181,14 @@ func (p Parsed) GetValidity() error {
 		osvconstants.EcosystemWolfi,
 		// GIT is a pseudo ecosystem that can be used in queries, so should be considered valid.
 		"GIT",
-		// the vendor's ecosystems (see above)
+		// the vendor's distributions (see above)
 		EcosystemVendorLinux,
-		EcosystemVendorHardened,
-		EcosystemVendorJDK,
-		EcosystemVendorNIK:
+		EcosystemVendorHardened:
 
 	default:
+		if IsVendorProduct(p.Ecosystem) {
+			return nil
+		}
 		return fmt.Errorf("base ecosystem does not exist in osvschema: %q", p.Ecosystem)
 	}
 
@@ -213,7 +216,8 @@ func Parse(str string) (Parsed, error) {
 
 	// We will also add a check for whether the ecosystem is valid to have a suffix here.
 	// And return an error if not.
-	ecosystem, suffix, _ := strings.Cut(str, ":")
+	// The vendor's families are recognised first: one may contain colons.
+	ecosystem, suffix := osvinternal.Family(str), osvinternal.Release(str)
 
 	result := Parsed{osvconstants.Ecosystem(ecosystem), suffix}
 

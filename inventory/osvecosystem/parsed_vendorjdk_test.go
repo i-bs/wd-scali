@@ -1,17 +1,3 @@
-// Copyright 2026 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package osvecosystem_test
 
 import (
@@ -24,34 +10,39 @@ import (
 	"github.com/ossf/osv-schema/bindings/go/osvconstants"
 )
 
-func TestParse_VendorJDK(t *testing.T) {
-	jdk21 := osvinternal.Ecosystem(osvinternal.EcosystemJDK, "21")
-	got, err := osvecosystem.Parse(jdk21)
-	if err != nil {
-		t.Fatalf("Parse(%s): %v", jdk21, err)
+// release is a release of a product family of the kind.
+func release(p osvinternal.Product) string {
+	if p.Kind == osvinternal.KindNIK {
+		return "23-21"
 	}
-	want := osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "21"}
-	if got != want {
-		t.Errorf("Parse(%s) = %+v, want %+v", jdk21, got, want)
-	}
-	if got.String() != jdk21 {
-		t.Errorf("String() = %q", got.String())
-	}
-	if !got.Equal(osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "21"}) ||
-		got.Equal(osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorJDK, Suffix: "17"}) {
-		t.Errorf("Equal() does not key on the major version suffix")
-	}
+	return "21"
 }
 
-func TestParse_VendorNIK(t *testing.T) {
-	nik2321 := osvinternal.Ecosystem(osvinternal.EcosystemNIK, "23-21")
-	got, err := osvecosystem.Parse(nik2321)
-	if err != nil {
-		t.Fatalf("Parse(%s): %v", nik2321, err)
+// Every product family of the module parses into its family and release,
+// whatever the family name looks like, and is valid and local-only.
+func TestParse_VendorProducts(t *testing.T) {
+	for _, p := range osvinternal.Products {
+		eco := p.Ecosystem(release(p))
+		got, err := osvecosystem.Parse(eco)
+		if err != nil {
+			t.Fatalf("Parse(%s): %v", eco, err)
+		}
+		want := osvecosystem.Parsed{Ecosystem: osvconstants.Ecosystem(p.Family), Suffix: release(p)}
+		if got != want || got.String() != eco {
+			t.Errorf("Parse(%s) = %+v (%q), want %+v", eco, got, got.String(), want)
+		}
+		if !got.Equal(want) || got.Equal(osvecosystem.Parsed{Ecosystem: want.Ecosystem, Suffix: "17"}) {
+			t.Errorf("%s: Equal() does not key on the suffix", eco)
+		}
+		if !osvecosystem.IsVendorProduct(want.Ecosystem) || !osvecosystem.IsLocalOnly(want.Ecosystem) {
+			t.Errorf("%s: not a local-only vendor product", eco)
+		}
 	}
-	want := osvecosystem.Parsed{Ecosystem: osvecosystem.EcosystemVendorNIK, Suffix: "23-21"}
-	if got != want || got.String() != nik2321 {
-		t.Errorf("Parse(%s) = %+v (%q), want %+v", nik2321, got, got.String(), want)
+	if osvecosystem.IsVendorProduct(osvconstants.EcosystemAlpine) || osvecosystem.IsVendorProduct(osvecosystem.EcosystemVendorLinux) {
+		t.Error("IsVendorProduct of a distribution")
+	}
+	if _, err := osvecosystem.Parse("Nope:1"); err == nil {
+		t.Error("an unknown ecosystem is accepted")
 	}
 }
 
@@ -59,7 +50,6 @@ func TestIsLocalOnly(t *testing.T) {
 	// the distributions are local-only when the module does not fetch them from the osv.dev bucket
 	distros := osvdata.DefaultBaseURLFor(osvinternal.EcosystemLinux) != "https://osv-vulnerabilities.storage.googleapis.com"
 	for eco, want := range map[osvconstants.Ecosystem]bool{
-		osvecosystem.EcosystemVendorJDK: true, osvecosystem.EcosystemVendorNIK: true,
 		osvecosystem.EcosystemVendorLinux: distros, osvecosystem.EcosystemVendorHardened: distros, osvconstants.EcosystemAlpine: false,
 	} {
 		if got := osvecosystem.IsLocalOnly(eco); got != want {

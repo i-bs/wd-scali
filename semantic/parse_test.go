@@ -40,8 +40,6 @@ var ecosystems = []string{
 	"Go",
 	"Hex",
 	"Julia",
-	osvinternal.EcosystemJDK,
-	osvinternal.EcosystemNIK,
 	"Mageia",
 	"Maven",
 	"MinimOS",
@@ -61,6 +59,11 @@ var ecosystems = []string{
 }
 
 func TestParse(t *testing.T) {
+	// the vendor's product families, however many the module is built with
+	ecosystems := ecosystems
+	for _, p := range osvinternal.Products {
+		ecosystems = append(ecosystems, p.Family)
+	}
 	for _, ecosystem := range ecosystems {
 		_, err := semantic.Parse("", ecosystem)
 
